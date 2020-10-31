@@ -1,0 +1,6 @@
+time interval: 30 minutes
+n: 4360
+m: 9542
+directed: false
+weighted: true double
+hfpoint: top 10%

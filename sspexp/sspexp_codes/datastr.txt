@@ -1,0 +1,30 @@
+lass Label {
+public:
+	vector<index_t> index_;	
+	index_t_p* index_p;
+	two_index_t_p* two_index_p;
+};
+
+struct index_t {
+	vector<NodeID> spt_v;
+	vector<EdgeWeight> spt_d;
+
+	NodeID size() {
+		return spt_v.size();
+	}
+
+};
+
+struct index_t_p {
+	NodeID* spt_v;
+	EdgeWeight* spt_d;
+}__attribute__((aligned(64)));  // Aligned for cache lines;
+
+
+
+struct two_index_t_p {
+	NodeID* spt_v;
+	EdgeWeight* spt_d;
+	uint8_t* spt_lv;
+	EdgeWeight* spt_ld;
+}__attribute__((aligned(64)));  // Aligned for cache lines;
