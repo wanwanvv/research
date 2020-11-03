@@ -252,6 +252,35 @@ public:
 	}
 };
 
+/**
+ * ordering class by frequency
+ * written by wanjingyi
+ * */
+class Frequency_Ordering : public Ordering{
+	public:
+	Frequency_Ordering(){
+		inv.resize(numOfVertices);
+		rank.resize(numOfVertices);
+	}
+	//constructor
+	Frequency_Ordering(char* load_filename){
+		inv.resize(numOfVertices);
+		rank.resize(numOfVertices);
+		ifstream in(load_filename);//input HFPoint file to ifstream
+		if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
+		NodeID t;NodeID i=0;
+		char line[24];
+		//read each line representing HFpoint to vector 
+		while (in.getline(line,sizeof(line)))
+		{
+			stringstream hp(line);
+			hp>>t;
+			inv[i]=t;
+			rank[t]=i++;
+		}
+	}
+};
+
 class Degree_1_Ordering : public Ordering{
 public:
 	Degree_1_Ordering(Graph& graph) {

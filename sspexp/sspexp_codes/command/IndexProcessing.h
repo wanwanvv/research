@@ -51,6 +51,10 @@ namespace command{
             double beta = 1;
             char labelSizeFileName[255] = ""; //filename used to save label size modified by wanjingyi
             char labelListFileName[255] = ""; //filename used to save labels of each vertice modified by wanjingyi
+            char freqIdFileName[255] = ""; //frequency ids' filename by wanjingyi
+            char asizeFileName[256]=""; //analysis size file
+			bool isOutputAnalysis=false;//whether write analysis size to file
+            int hfRate=5; //high frequency point rate 1/1000
             
             if(argc < 14) // modified by wanjingyi
                 exit_with_help();
@@ -62,6 +66,7 @@ namespace command{
                 switch (argv[i-1][1]){
                     case 'g':
                         strcpy(graphFileName,argv[i]);
+                        cout<<" graphFileName="<<graphFileName<<endl;
                         break;
                     case 'd':
                         t_directed_flag = atoi(argv[i]);
@@ -77,6 +82,7 @@ namespace command{
                         break;
                     case 'e':
                         strcpy(labelFileName, argv[i]);
+                        cout<<"labelFileName="<<labelFileName<<endl;
                         break;
                     case 'a':
                         beta = atof(argv[i]);
@@ -85,9 +91,23 @@ namespace command{
                         break;
                     case 'i':
                         strcpy(labelSizeFileName,argv[i]);
+                        cout<<"labelSizeFileName="<<labelSizeFileName<<endl;
                         break;
                     case 'p':
                         strcpy(labelListFileName,argv[i]);
+                        cout<<"labelListFileName="<<labelListFileName<<endl; 
+                        break;
+					case 'f':
+                        strcpy(asizeFileName,argv[i]); ///modified by wanjingyi
+                        isOutputAnalysis=true;
+						cout<<"asizeFileName = "<<asizeFileName<<endl;
+                    case 'h':
+                        strcpy(freqIdFileName,argv[i]);
+                        cout<<"freqIdFileName="<<freqIdFileName<<endl;
+                        break;
+					case 'r':
+                        hfRate = atoi(argv[i]);
+                        cout<<"hfRate="<<hfRate<<endl;
                         break;
                     default:
                         exit_with_help();
@@ -105,7 +125,7 @@ namespace command{
                 exit_with_help();
             if(t_special_flag <0 || t_special_flag > 4)
                 exit_with_help();
-            if(t_ordering_flag <0 || t_ordering_flag > 2)
+            if(t_ordering_flag <0 || t_ordering_flag > 3) //modified by wanjingyi
                 exit_with_help();
             if(beta<=0)
                 exit_with_help();
@@ -133,8 +153,9 @@ namespace command{
                             Degree_Ordering degree_order(wgraph);
                             PL_W pl_w(wgraph, degree_order, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
-                            
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             degree_order.save_rank(orderFileName.c_str());
@@ -147,7 +168,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, wgraph, numOfVertices);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+                            
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -156,11 +180,13 @@ namespace command{
                             labelFile.append(".label");
                             betweenness_ordering.dlabels.save_labels(labelFile.c_str());
                             return 0;
-                        }else{ // t_ordering_flag == 2
+                        }else if (t_ordering_flag == 2){ // t_ordering_flag == 2
                             double _labeling_time = GetCurrentTimeSec();
                             Coverage_Ordering coverage_ordering(wgraph, DIRECTED_FLAG, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -177,7 +203,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             PL pl(graph, degree_order, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -191,7 +219,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -204,7 +234,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Coverage_Ordering coverage_ordering(graph, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -223,7 +255,9 @@ namespace command{
                             Degree_Ordering degree_order(wgraph);
                             PL_W pl_w(wgraph, degree_order);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
 
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -236,7 +270,7 @@ namespace command{
                             cout<<"save_labels successfully!"<<endl;
 
                             /*********save label size written by wanjingyi****/
-                            pl_w.labels.save_label_size(labelSizeFileName,degree_order.rank);
+                            pl_w.labels.save_label_size(labelSizeFileName,degree_order.inv);
                             cout<<"save_label_size succesfully!"<<endl;
                             /*********save label size written by wanjingyi****/
                             /*********save label size written by wanjingyi****/
@@ -245,12 +279,21 @@ namespace command{
                             pl_w.labels.write_labels(labelListFileName,degree_order.inv);
                             cout<<"write_labels succesfully!"<<endl;
                             /*********save label size written by wanjingyi****/
+
+                            if(isOutputAnalysis){
+						        cout<<"*************write_analysis_size begins!**************"<<endl;
+                                pl_w.labels.save_anaylysis_size(freqIdFileName,asizeFileName,hfRate);
+						        cout<<"*************write_analysis_size finished!*************"<<endl;
+					        }
                             return 0;
                         }else if (t_ordering_flag == 1){
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, wgraph, numOfVertices);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -259,11 +302,13 @@ namespace command{
                             labelFile.append(".label");
                             betweenness_ordering.labels.save_labels(labelFile.c_str());
                             return 0;
-                        }else{ // t_ordering_flag == 2
+                        }else if(t_ordering_flag == 2){ // t_ordering_flag == 2
                             double _labeling_time = GetCurrentTimeSec();
                             Coverage_Ordering coverage_ordering(wgraph);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -273,6 +318,39 @@ namespace command{
                             labelFile.append(".label");
                             coverage_ordering.labels.save_labels(labelFile.c_str());
                             return 0;
+                        }else{ //t_ordering_flag == 3 modified by wanjingyi
+                            double _labeling_time = GetCurrentTimeSec();
+                            if(freqIdFileName=="") cout<<" Error: there is no frequency order file input!"<<endl;
+                            Frequency_Ordering frequency_order(freqIdFileName);
+                            PL_W pl_w(wgraph, frequency_order);
+                            _labeling_time = GetCurrentTimeSec() - _labeling_time;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
+                            string orderFileName(labelFileName);
+                            orderFileName.append(".order");
+                            frequency_order.save_rank(orderFileName.c_str());
+                            cout<<"save_rank succesfully!"<<endl;
+                            
+                            string labelFile(labelFileName);
+                            labelFile.append(".label");
+                            pl_w.labels.save_labels(labelFile.c_str());
+                            cout<<"save_labels successfully!"<<endl;
+
+                            /*********save label size written by wanjingyi****/
+                            pl_w.labels.save_label_size(labelSizeFileName,frequency_order.inv);
+                            cout<<"save_label_size succesfully!"<<endl;
+                            /*********save label size written by wanjingyi****/
+                             /*********write labels to list written by wanjingyi****/
+                            pl_w.labels.write_labels(labelListFileName,frequency_order.inv);
+                            cout<<"write_labels succesfully!"<<endl;
+                             /*********write labels to list written by wanjingyi****/
+                            if(isOutputAnalysis){
+						        cout<<"*************write_analysis_size begins!**************"<<endl;
+                                pl_w.labels.save_anaylysis_size(freqIdFileName,asizeFileName,hfRate);
+						        cout<<"*************write_analysis_size finished!*************"<<endl;
+					        }
                         }
                     }else{
                         if(t_ordering_flag == 0){
@@ -280,7 +358,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             PL pl(graph, degree_order);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -303,7 +383,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -317,7 +400,9 @@ namespace command{
                             vector<NodeID> border(numOfVertices);
                             Coverage_Ordering coverage_ordering(graph, border);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -338,7 +423,9 @@ namespace command{
 	                        Degree_Ordering degree_order(wgraph);
                             PL_W pl_w(wgraph, degree_order, true, true,true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -352,7 +439,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, wgraph, numOfVertices, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -365,7 +455,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                         	Coverage_Ordering_Path coverage_ordering(wgraph, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -382,7 +474,9 @@ namespace command{
                         	Degree_Ordering degree_order(graph);
                             PL pl(graph, degree_order, true, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -396,7 +490,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -409,7 +506,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Coverage_Ordering_Path coverage_ordering(graph, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -428,7 +527,9 @@ namespace command{
                             Degree_Ordering degree_order(wgraph);
                             PL_W pl_w(wgraph, degree_order, true, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -442,7 +543,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, wgraph, numOfVertices, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -455,7 +559,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Coverage_Ordering_Path coverage_ordering(wgraph);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -472,7 +578,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             PL pl(graph, degree_order, true, false);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -486,7 +594,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -500,7 +611,9 @@ namespace command{
                             vector<NodeID> border(numOfVertices);
                             Coverage_Ordering_Path coverage_ordering(graph, border);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -524,7 +637,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             BPL<50> bpl(graph, degree_order, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string labelFile(labelFileName);
                             labelFile.append(".label");
@@ -534,7 +649,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             BP_Betweenness_Ordering<50> betweenness_ordering(16, beta, graph, numOfVertices);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string labelFile(labelFileName);
                             labelFile.append(".label");
@@ -544,7 +661,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                             Coverage_Ordering_BP<50> coverage_ordering(graph, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string labelFile(labelFileName);
                             labelFile.append(".label");
@@ -562,7 +681,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             BPL<50> bpl(graph, degree_order);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string labelFile(labelFileName);
                             labelFile.append(".label");
@@ -572,7 +693,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
 	                        BP_Betweenness_Ordering<50> betweenness_ordering(16, beta, graph, numOfVertices);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string labelFile(labelFileName);
                             labelFile.append(".label");
@@ -583,7 +706,9 @@ namespace command{
                             vector<NodeID> border(numOfVertices);
                             Coverage_Ordering_BP<50> coverage_ordering(graph, border);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string labelFile(labelFileName);
                             labelFile.append(".label");
@@ -603,7 +728,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
 	                        CPL pl(graph, degree_order, false, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -617,7 +744,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
 	                        Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices, 10, 8 , false, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -630,7 +760,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                         	Coverage_Ordering_Compress coverage_ordering(graph, true, false); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -649,7 +781,9 @@ namespace command{
                             Degree_Ordering degree_order(wgraph);
                            	CPL_W pl(wgraph, degree_order, false); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -663,7 +797,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                            	Betweenness_Ordering betweenness_ordering(16, beta, wgraph, numOfVertices, 10, 8 , false, false);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -676,7 +813,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                         	Coverage_Ordering_Compress coverage_ordering(wgraph, false, false);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -693,7 +832,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             CPL pl(graph, degree_order, false); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -707,7 +848,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
 	                        Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices, 10, 8 , false, false);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -721,7 +865,9 @@ namespace command{
                             vector<NodeID> border(numOfVertices);
                             Coverage_Ordering_Compress coverage_ordering(graph);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -745,7 +891,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
 	                        CPL pl(graph, degree_order, true, DIRECTED_FLAG);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -759,7 +907,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
 	                        Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices, 10, 8 , true, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -772,7 +923,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                         	Coverage_Ordering_Compress coverage_ordering(graph, true, true); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -791,7 +944,9 @@ namespace command{
                             Degree_Ordering degree_order(wgraph);
                            	CPL_W pl(wgraph, degree_order, true); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -805,7 +960,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                            	Betweenness_Ordering betweenness_ordering(16, beta, wgraph, numOfVertices, 10, 8 , true, false);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -818,7 +976,9 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
                         	Coverage_Ordering_Compress coverage_ordering(wgraph, false, true);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -835,7 +995,9 @@ namespace command{
                             Degree_Ordering degree_order(graph);
                             CPL pl(graph, degree_order, true); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
@@ -849,7 +1011,10 @@ namespace command{
                             double _labeling_time = GetCurrentTimeSec();
 	                        Betweenness_Ordering betweenness_ordering(16, beta, graph, numOfVertices, 10, 8 , true, false);
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");
                             betweenness_ordering.save_rank(orderFileName.c_str());
@@ -863,7 +1028,9 @@ namespace command{
                             vector<NodeID> border(numOfVertices);
                             Coverage_Ordering_Compress coverage_ordering(graph, false, true); 
                             _labeling_time = GetCurrentTimeSec() - _labeling_time;
-                            cout << "Indexing time:" << _labeling_time << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
                             
                             string orderFileName(labelFileName);
                             orderFileName.append(".order");

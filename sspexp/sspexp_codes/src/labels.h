@@ -2393,7 +2393,6 @@ class HFLabel : public Label{
 		vector<NodeID> LFOripoint; //store the low frequency points'ids
 		vector<NodeID> spt_v_num; //store the size of each vertice's labels
 		vector<NodeID> rank;//store the verices' rank
-		vector<NodeID> freqID;//store the verices's'ids by order
 		int numOfHFpoint; //number of High frequency points
 	
 		HFLabel(){
@@ -2404,7 +2403,6 @@ class HFLabel : public Label{
 			rank.clear();
 			HFOripoint.clear();
 			LFOripoint.clear();
-			freqID.clear();
 		}
 		~HFLabel(){
 			Free();
@@ -2460,22 +2458,20 @@ class HFLabel : public Label{
 		 * function used to read HFpoint from file
 		 * written by wanjingyi
 		 * */
-		 void load_HFpoint(char* load_filename,int hfRate=5){
+		 void load_HFpoint(char* load_filename,int hfRate=50){
 			 numOfHFpoint = 0;//first line is the number of HFpoints
-			 numOfHFpoint = static_cast<int> ( (double)numOfVertices*hfRate/(double)100 );
+			 numOfHFpoint = static_cast<int> ( (double)numOfVertices*hfRate/(double)1000);
 			 if(numOfHFpoint<=0) cout<<"error:numOfHFpoint<=0"<<endl;
 			 cout<<"numOfHFpoint  = "<<numOfHFpoint <<endl;
 			 ifstream in(load_filename);//input HFPoint file to ifstream
 			 if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
 			 NodeID t,id;int i=0;
 			 char line[24];
-			 freqID.resize(numOfVertices,0); //initialize the ids by frequency order
 			 //read each line representing HFpoint to vector 
 			 while (in.getline(line,sizeof(line)))
 			 {
 				 stringstream hp(line);
 				 hp>>t;
-				 freqID.push_back(t);
 				 if(i<numOfHFpoint) HFOripoint.push_back(t);
 				 else LFOripoint.push_back(t);
 				 ++i;
@@ -2493,7 +2489,7 @@ class HFLabel : public Label{
 			{
 				id=HFOripoint[i];
 				HFPoint[i]=rank[id]; //fetch the order rank by NodeId
-				HFinGraphIndex[rank[id]]=true;
+				HFinGraphIndex[id]=true;
 			}
 		 }
 
@@ -2501,14 +2497,14 @@ class HFLabel : public Label{
 		  * function used to find  the minist-index label of current point
 		  * modified by wanjingyi
 		  * */
-		 int findminIndex(const vector<pair<NodeID,NodeID>>& index)
+		 int findminIndex(vector<pair<NodeID,NodeID>>& index)
 		 {
 			NodeID min{ INT_MAX };//min代表当前找到的label中结点的最小编号
 			int result{ -1 };//表示当前找到最小值的点对应的数组位置
 			NodeID currentPoint;//表示当前比较的label结点
-			cout<<"findminIndex:numOfVertices="<<numOfVertices<<endl;
+			//cout<<"findminIndex:numOfVertices="<<numOfVertices<<endl;
 			for (int i = 0; i < numOfHFpoint; i++) {
-				if(i%100==0) cout<<"i="<<i<<" spt_v_num[i]="<<spt_v_num[i]<<";";
+				//if(i%100==0) cout<<"i="<<i<<" spt_v_num[i]="<<spt_v_num[i]<<";";
 				if (index[i].second < spt_v_num[i]) {
 					//cout<<"index=("<<index[i].first<<","<<index[i].second<<")"<<";";
 					currentPoint = index_p[index[i].first].spt_v[index[i].second];
@@ -2519,9 +2515,90 @@ class HFLabel : public Label{
 					}
 				}
 			}
+			for (int i = 0; i < HFPoint.size(); i++) {
+				if (index_p[index[i].first].spt_v[index[i].second] == min) {
+					index[i].second++;
+				}	
+			}
+		if(result!=-1)
+		index[result].second--;
 			if (INT_MAX == min)
 				result == -1;
 			return result;
+		 }
+
+		 /**
+		  * function used to serialize vertice's labels to file,format as follows:
+		  * label_size v (w0,d(v,w0)) (w1,d(v,w1))...(wn,d(v,wn))
+		  * written by wanjingyi
+		  * */
+		 void write_update_labels(const char* write_filename)
+		 {
+			 cout<<"write_update_labels begins!"<<endl;
+			 string write_filename_prefix(write_filename);
+			 string write_filename1=write_filename_prefix.append("_update.list");
+			 ofstream ofs(write_filename1.c_str());
+			 if(!ofs.is_open()) {cerr<<"Cannot open "<<write_filename1<<endl;}
+			for (NodeID v = 0; v < numOfVertices; ++v) 
+			{
+				NodeID isize = spt_v_num[v]+1;
+				ofs <<isize<<" "<<v;
+				for (NodeID i = 0; i < isize; ++i) {
+					ofs<<" "<<'('<<index_p[v].spt_v[i]<<","<<index_p[v].spt_d[i]<<")";
+				}
+				ofs<<endl;
+			}
+			ofs.close();
+			cout<<"write_update_labels finished!"<<endl;
+		 }
+
+		 /**
+		  * function used to output the total and ave size comparation
+		  * written by wanjingyi
+		  * */
+		 void save_anaylysis_size(const char* freqid_filename,const char* write_filename,int hfRate=5)
+		 {
+			 //load hfPoint
+			numOfHFpoint = 0;//first line is the number of HFpoints
+			 numOfHFpoint = static_cast<int> ( (double)numOfVertices*hfRate/(double)1000);
+			 if(numOfHFpoint<=0) cout<<"error:numOfHFpoint<=0"<<endl;
+			 cout<<"numOfHFpoint  = "<<numOfHFpoint <<endl;
+			 ifstream in(freqid_filename);//input HFPoint file to ifstream
+			 HFOripoint.resize(numOfHFpoint,0);
+			 HFinGraphIndex.resize(numOfVertices,0);
+			 if(!in.is_open()) {cerr<<"Cannot open "<<freqid_filename<<endl;}
+			 NodeID id;int i=0;
+			 char line[24];
+			 //read each line representing HFpoint to vector 
+			 while (in.getline(line,sizeof(line)))
+			 {
+				 stringstream hp(line);
+				 hp>>id;
+				if(i>=numOfHFpoint) break;
+				HFOripoint[i++]=id;
+				HFinGraphIndex[id]=true;
+			 }
+			 in.close();
+			//write size analysis to file
+			long long total_sum_size=0,hf_sum_size=0;
+			double total_ave_size=0,hf_ave_size=0;
+			for (NodeID v = 0; v < numOfVertices; ++v) 
+			{
+				NodeID isize = index_[v].size();
+				total_sum_size+=isize;
+				if(HFinGraphIndex[v]) hf_sum_size+=isize;
+			}
+			total_ave_size= (double) total_sum_size/(double) numOfVertices;
+			hf_ave_size= (double) hf_sum_size/(double) numOfHFpoint;
+			cout<<"numOfVertices="<<numOfVertices<<" total_sum_size="<<total_sum_size<<" total_ave_size="<<total_ave_size<<endl;
+			cout<<"numOfHFpoint="<<numOfHFpoint<<" hf_sum_size="<<hf_sum_size<<" hf_ave_size="<<hf_ave_size<<endl;
+			string write_filename_prefix(write_filename);
+			string asize_filename=write_filename_prefix.append("_analysis.size");
+			ofstream ofs(asize_filename.c_str());
+			if(!ofs.is_open()) {cerr<<"Cannot open "<<asize_filename<<endl;}
+			ofs<<"numOfVertices="<<numOfVertices<<" total_sum_size="<<total_sum_size<<" total_ave_size="<<total_ave_size<<endl;
+			ofs<<"numOfHFpoint="<<numOfHFpoint<<" hf_sum_size="<<hf_sum_size<<" hf_ave_size="<<hf_ave_size<<endl;
+			ofs.close();	
 		 }
 
 		 /**
@@ -2561,7 +2638,7 @@ class HFLabel : public Label{
 		 }
 
 		/**
-		 * function used to updtae labels by high frequency points
+		 * function used to updtae labels by low frequency points
 		 * written by wanjingyi
 		 * */
 		 void update_low_labels()
@@ -2578,15 +2655,15 @@ class HFLabel : public Label{
 			int tempcur;//表示tempHOP中当前存储到第几个label
 			int hIndex, lIndex;//分别存储更新label时高频点和低频点对应的当前检索的label位置
 			//初始化indexHFhopPoint为label对应点	
-			for (int i = 0; i < HFPoint.size(); i++) {
-				indexHFhopPoint[i].first = HFPoint[i];
+			for (int i = 0; i < HFOripoint.size(); i++) {
+				indexHFhopPoint[i].first = HFOripoint[i];
 			}
 			cout<<"update_labels initialize successffully!"<<endl;
 
 			//将各HFPoint中的label由小到大无重复地放入HFhopPoint中
 			for (int i = 0; i != -1;) {
 				i = findminIndex(indexHFhopPoint);
-				cout<<"i = "<<i<<endl;
+				//cout<<"i = "<<i<<endl;
 				if (i != -1) {
 					//将查找到的最小Label对应的Hop号放入HFhopPoint
 					HFhopPoint.push_back(index_p[indexHFhopPoint[i].first].spt_v[indexHFhopPoint[i].second]);
@@ -2595,9 +2672,100 @@ class HFLabel : public Label{
 			}
 			cout<<"findminIndex successffully!"<<endl;
 
+			double update_time=GetCurrentTimeSec();
 			//更新图中所有低频点的label
 			for (int i = 0; i < HFinGraphIndex.size(); i++) {
-				double update_time=GetCurrentTimeSec();
+				if (!HFinGraphIndex[i]) {//如果该点不是高频点，则更新其label
+					hIndex = 0;//初始化hIndex
+					lIndex = 0;//初始化lIndex
+					tempcur = 0;//初始化tempcur
+					//对于每一个低频点，比对HFhopPoint和低频点中的label，将HFhopPoint中的部分放在低频点label的最前面，更新后的label仍按序排列
+					while (hIndex < HFhopPoint.size() && lIndex < spt_v_num[i] ) {
+						if (HFhopPoint[hIndex] == index_p[i].spt_v[lIndex]) {
+							tempHOP.first[tempcur] = index_p[i].spt_v[lIndex];//将选中的共有hop存入tempHOP
+							tempHOP.second[tempcur] = index_p[i].spt_d[lIndex];
+							index_p[i].spt_v[lIndex] = -1;//将选中的共有hop标志为-1
+							hIndex++;
+							lIndex++;
+							tempcur++;
+						}
+						else if (HFhopPoint[hIndex] < index_p[i].spt_v[lIndex])
+							hIndex++;
+						else
+							lIndex++;
+					}
+					//将当前低频点中剩余的非共有hop点放入tempHOP,未比较部分不用处理
+					if (tempcur > 0) {
+						index_p[i].spt_v[spt_v_num[i]] = tempcur;//将Label后半部分的起始位置索引放在无穷大位置
+						for (int j = 0; j < spt_v_num[i]; j++) {
+							if (index_p[i].spt_v[j] != -1) {
+								tempHOP.first[tempcur] = index_p[i].spt_v[j];
+								tempHOP.second[tempcur++] = index_p[i].spt_d[j];
+							}
+						}
+						//将更新后的tempHOP中的内容赋值给原label，实现原label更新
+						for (int j = 0; j < tempcur; j++) {
+							index_p[i].spt_v[j] = tempHOP.first[j];
+							index_p[i].spt_d[j] = tempHOP.second[j];
+						}
+					}
+				}
+			}
+			update_time = GetCurrentTimeSec()-update_time;
+			cout << " Total update time is : " << update_time* 1e6 << endl;
+			double utime=update_time/(numOfVertices-numOfHFpoint);
+			cout << " Each LFPoint update time is : " << utime* 1e6 << endl;
+			cout<<"update low frequency point successffully!"<<endl;
+
+		 }
+
+		/**
+		 * function used to updtae labels by high frequency points
+		 * written by wanjingyi
+		 * */		 
+		void update_high_labels()
+		{
+			 vector<NodeID> HFhopPoint;//存放所有HFPoint中无重复的hop点
+			 //建立高频点与遍历到的点的对应关系,第一个点为HFPoint序号，第二个值为HFPoint中当前搜索到的标签位置
+			 vector<pair<NodeID,NodeID> > indexHFhopPoint(numOfHFpoint ,make_pair(0,0));
+			 int i = numOfHFpoint;//i表示HFPoint各标签中剩余未取出的hop点
+			 //用于临时存放更新label时选择的高频点对应的hop以及最终更新后的label
+			 pair<vector<NodeID>, vector<NodeID> > tempHOP;
+			 tempHOP.first.resize(numOfVertices);//初始化临时存放pair,预留10000储存区
+			tempHOP.second.resize(numOfVertices);//初始化临时存放pair,预留10000储存区
+			cout<<"tempHOP. initialize size is numOfVertices="<<numOfVertices<<endl;
+			int tempcur;//表示tempHOP中当前存储到第几个label
+			int hIndex, lIndex;//分别存储更新label时高频点和低频点对应的当前检索的label位置
+			//初始化indexHFhopPoint为label对应点	
+			for (int i = 0; i < HFOripoint.size(); i++) {
+				indexHFhopPoint[i].first = HFOripoint[i];
+			}
+			cout<<"update_labels initialize successffully!"<<endl;
+
+			//将各HFPoint中的label由小到大无重复地放入HFhopPoint中
+			for (int i = 0; i != -1;) {
+				i = findminIndex(indexHFhopPoint);
+				//cout<<"i = "<<i<<endl;
+				if (i != -1) {
+					//将查找到的最小Label对应的Hop号放入HFhopPoint
+					HFhopPoint.push_back(index_p[indexHFhopPoint[i].first].spt_v[indexHFhopPoint[i].second]);
+					indexHFhopPoint[i].second++;
+				}
+			}
+			cout<<"findminIndex successffully!"<<endl;
+			vector<int> pivotCount(numOfVertices, 0);//用来记录所有高频点中重复的pivot，其值大于2则代表此pivot应排在高频点label前部
+			vector<int> HFPivot;//存放所有HFPoint中计数大于2的pivot
+			for (int i = 0; i < numOfHFpoint; i++) {//对于每一个高频点
+				for (int j = 0; j < spt_v_num[HFOripoint[i]]; j++)//对于高频点中的每个pivot
+					pivotCount[index_p[HFOripoint[i]].spt_v[j]]++;//使得pivotCount中对应的pivot计数器+1
+			}
+			for (int i = 0; i < numOfVertices; i++) {
+				if (pivotCount[i] > 1) //如果pivot计数大于1，则将该pivot放入HFpivot中
+					HFPivot.push_back(i);
+			}
+
+			//更新图中所有低频点的label
+			for (int i = 0; i < HFinGraphIndex.size(); i++) {
 				if (!HFinGraphIndex[i]) {//如果该点不是高频点，则更新其label
 					hIndex = 0;//初始化hIndex
 					lIndex = 0;//初始化lIndex
@@ -2631,44 +2799,101 @@ class HFLabel : public Label{
 							index_p[i].spt_d[j] = tempHOP.second[j];
 						}
 					}
+				}else{//更新高频点的label，使得所有高频点的共有pivot在label前按序排列，原label大小不变
+					updateHFLabel(HFPivot);
 				}
-				update_time = GetCurrentTimeSec()-update_time;
-				cout << i << " update time is : " << update_time* 1e6 << endl;
 			}
-			cout<<"update low frequency point successffully!"<<endl;
+		}
 
-		 }
-
+//更新高频点的label，使得所有高频点的共有pivot在label前部按序排列，原label大小不变
+void updateHFLabel(const vector<int> mutualPivot) {
+	int hIndex{ 0 };//高频点label索引
+	int pivotIndex{ 0 };//mutualPivot索引
+	vector<pair<int, int>> tempLabel(numOfVertices, make_pair(0, 0));//临时存放更新过程中的高频点label
+	int tempcur{ 0 };//表示tempLabel中当前存储到第几个label
+	//对于每一个高频点，比对mutualPivot中的元素和高频点中的label，将包含在pivot中的部分放在高频点label的最前面，更新后的label仍按序排列
+	for (int i = 0; i < HFOripoint.size(); i++) {
+		int hIndex = 0;//初始化hIndex
+		int pivotIndex = 0;//初始化pivotIndex
+		int tempcur = 0;//初始化tempcur
+		while (hIndex < spt_v_num[HFOripoint[i]] && pivotIndex < mutualPivot.size()) {
+			if (mutualPivot[pivotIndex] == index_p[HFOripoint[i]].spt_v[hIndex]) {
+				tempLabel[tempcur].first = index_p[HFOripoint[i]].spt_v[hIndex];//将选中的pivot存入tempLabel
+				tempLabel[tempcur].second = index_p[HFOripoint[i]].spt_d[hIndex];
+				index_p[HFOripoint[i]].spt_v[hIndex] = -1;//将选中的共有hop标志为-1
+				hIndex++;
+				pivotIndex++;
+				tempcur++;
+			}
+			else if (mutualPivot[pivotIndex] < index_p[HFOripoint[i]].spt_v[hIndex])
+				pivotIndex++;
+			else
+				hIndex++;
+		}
+		//将当前高频点中剩余的非共有pivot放入tempLabel,未比较部分不用处理
+		if (tempcur > 0) {
+			for (int j = 0; j < spt_v_num[HFOripoint[i]]; j++) {
+				if (index_p[HFOripoint[i]].spt_v[j] != -1) {
+					tempLabel[tempcur].first = index_p[HFOripoint[i]].spt_v[j];
+					tempLabel[tempcur++].second = index_p[HFOripoint[i]].spt_d[j];
+				}
+			}
+			//将更新后的tempLabel中的内容赋值给原label，实现原label更新
+			for (int j = 0; j < tempcur; j++) {
+				index_p[HFOripoint[i]].spt_v[j] = tempLabel[j].first;
+				index_p[HFOripoint[i]].spt_d[j] = tempLabel[j].second;
+			}
+		}
+	}
+	
+}
 		 
 
 		/**
 		 * function used to save label size to file
 		 * written by wanjingyi
 		 * */
-		void save_label_size(const char* label_size_file,const vector<NodeID>& rank) {
+		void save_label_size(const char* label_size_file,const vector<NodeID>& inv) {
 			string labelSizefile_prefix(label_size_file);
 			string labelSizefile=labelSizefile_prefix.append(".size");
 			ofstream ofs(labelSizefile);
+			if(!ofs.is_open()) {cerr<<"Cannot open "<<labelSizefile<<endl;}
 			for (int i = 0; i < numOfVertices; ++i) {
 				ofs << index_[i].size()-1 << endl;
 			}
 			ofs.close();
-
 			//output the size by descending order,format:label_size
 			string labelSizefile_prefix1(label_size_file);
 			string labelSizefile1=labelSizefile_prefix1.append("_byOrder.size");
 			ofstream out(labelSizefile1.c_str());
+			if(!out.is_open()) {cerr<<"Cannot open "<<labelSizefile1<<endl;}
 			for (int i = 0; i < numOfVertices; ++i) {
-				out<<index_[rank[i]].size()-1 << endl;
+				out<<index_[inv[i]].size()-1 << endl;
 			}		
 			out.close();
 		}
 
 		/**
-		 * function used to query distinguished by high frequency and low frequency
+		 * function used to save query distance to file
 		 * written by wanjingyi
 		 * */
-		EdgeWeight query_hf(NodeID s, NodeID t) {
+		void save_query_distance(vector<pair<int, int> > queries,const char* query_distance_file,const vector<EdgeWeight>& distance_p, const vector<EdgeWeight>& distance_hf,int numQuery,int warmup,int queryModel=0,int updateModel=0) {
+			string query_distance_file_prefix(query_distance_file);
+			string appendix="";
+			appendix+="_u"+to_string(updateModel)+"_q"+to_string(queryModel)+"_"+to_string(numQuery)+".dis";
+			string query_distance_filename=query_distance_file_prefix.append(appendix);
+			ofstream ofs(query_distance_filename);
+			if(!ofs.is_open()) {cerr<<"Cannot open "<<query_distance_filename<<endl;}
+			for (int i = warmup; i < warmup + numQuery; ++i) {
+				ofs <<"("<<queries[i].first<<","<<queries[i].second<<") "<<distance_p[i-warmup];
+				if(updateModel!=0) ofs<<" "<<distance_hf[i-warmup];
+				ofs<<endl;
+			}
+			ofs.close();
+		}
+
+		EdgeWeight query_lf(NodeID s, NodeID t)
+		{
 			EdgeWeight distance = INF_WEIGHT;
 
 			const index_t_p &idx_s = index_p[s];
@@ -2678,14 +2903,54 @@ class HFLabel : public Label{
 			_mm_prefetch(&idx_t.spt_v[0], _MM_HINT_T0);
 			_mm_prefetch(&idx_s.spt_d[0], _MM_HINT_T0);
 			_mm_prefetch(&idx_t.spt_d[0], _MM_HINT_T0);
+			bool isBreak=false; //judge break or not
+			for(int i=0,j=0; ; )
+				{
+					//if(i==0&&j==0) cout<<" s-t:h-l";
+					if(j==idx_t.spt_v[spt_v_num[t]] ) break;
+					NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j];
+					if (v1 == v2) {
+						EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
+						if (td < distance) distance = td;
+						++i;
+						++j;
+					} 
+					else {
+						i += v1 < v2 ? 1 : 0;
+						j += v1 > v2 ? 1 : 0;
+					}
+					
+				}
+				return distance;
+		}
 
-			if(HFinGraphIndex[rank[s]]&&HFinGraphIndex[rank[t]]){ // (s,t)both high 
+		/**
+		 * function used to query distinguished by high frequency and low frequency
+		 * written by wanjingyi
+		 * */
+		EdgeWeight query_hf(NodeID s, NodeID t) {
+			EdgeWeight distance = INF_WEIGHT;
+			if(!HFinGraphIndex[s]&&HFinGraphIndex[t]){ //s-t:l-h
+				NodeID tmp=s;
+				s=t;
+				t=tmp;
+			}
+			const index_t_p &idx_s = index_p[s];
+			const index_t_p &idx_t = index_p[t];
+
+			_mm_prefetch(&idx_s.spt_v[0], _MM_HINT_T0);
+			_mm_prefetch(&idx_t.spt_v[0], _MM_HINT_T0);
+			_mm_prefetch(&idx_s.spt_d[0], _MM_HINT_T0);
+			_mm_prefetch(&idx_t.spt_d[0], _MM_HINT_T0);
+
+			if(HFinGraphIndex[s]&&HFinGraphIndex[t]){ // (s,t)both high 
 				for(int i=0,j=0; ; )
 				{
-					
 					NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j];
 					if (v1 == numOfVertices|| v2== numOfVertices) break;  // Sentinel
-					if(v1>idx_s.spt_v[i+1] || v2>idx_s.spt_v[j+1]) break;
+					if(v1>idx_s.spt_v[i+1] || v2>idx_t.spt_v[j+1]){
+						break;
+					}
 					if (v1 == v2) {
 						EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
 						if (td < distance) distance = td;
@@ -2698,61 +2963,111 @@ class HFLabel : public Label{
 					}
 
 				}
-			}else if(HFinGraphIndex[rank[s]]&&!HFinGraphIndex[rank[t]]){ //s-high,t-low
-				for(int i=0,j=0; ; )
-				{
-					
-					NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j];
-					if (v1 == numOfVertices|| v2== numOfVertices) break;  // Sentinel
-					if(v1>idx_s.spt_v[i+1] ) break;
-					if (v1 == v2) {
-						EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
-						if (td < distance) distance = td;
-						++i;
-						++j;
-					} 
-					else {
-						i += v1 < v2 ? 1 : 0;
-						j += v1 > v2 ? 1 : 0;
-					}
+			}else if(HFinGraphIndex[s]&&!HFinGraphIndex[t]){ //s-high,t-low
+			//imiddle表示高频点后半部分的起始点(该索引号存放在无穷大的位置)
+				for (int i = 0, imiddle = idx_s.spt_v[spt_v_num[s]], j = 0; ; ) {
+					//低频点当前pivot大于下一个pivot或高频点中前半部分和后半部分都查询结束时，整个查询结束，低频点的无穷大保证了正确性
+					if (idx_t.spt_v[j] > idx_t.spt_v[j + 1] || (i == idx_s.spt_v[spt_v_num[s]] && imiddle == spt_v_num[s])) break;
+					NodeID v1 = idx_s.spt_v[i], v1middle = idx_s.spt_v[imiddle], v2 = idx_t.spt_v[j];
+					if (v1 == numOfVertices) break;  // Sentinel
+					if (i < idx_s.spt_v[spt_v_num[s]]) {//i只查询高频点前半部分
+						if (v1 == v2) {
+							EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
+							if (td < distance) distance = td;
+							++i;
+							++j;
+						}else{//若前半部分当前未查到相同的pivot，则要进入后半部分进行查询
+							while (v1middle != v2 && imiddle < spt_v_num[s]) {//imiddle只查询高频点后半部分
+								++imiddle;
+								v1middle == idx_s.spt_v[imiddle];//无穷大位置用来存放后半部分起始点标记，保证了数组不会越界
+							}
+							if (v1middle == v2) {
+								EdgeWeight td = idx_s.spt_d[imiddle] + idx_t.spt_d[j];
+								if (td < distance) distance = td;
+								++imiddle;
+								++j;
+							}else{
+								if (v1 > v2) {
+									if (v2 > v1middle)
+										++imiddle;//v1middle最小
+									else
+										++j;//v2最小
+								}
+								else {
+									if (v1 > v1middle) {
+										++imiddle;//v1middle最小
+									}
+									else ++i;//v1最小
+								}
+							}
+						}
 
-				}
-			}else if(!HFinGraphIndex[rank[s]]&&HFinGraphIndex[rank[t]]){ //s-low,t-high
-				for(int i=0,j=0; ; )
-				{
-					
-					NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j];
-					if (v1 == numOfVertices|| v2== numOfVertices) break;  // Sentinel
-					if(v2>idx_s.spt_v[j+1]) break;
-					if (v1 == v2) {
-						EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
-						if (td < distance) distance = td;
-						++i;
-						++j;
-					} 
-					else {
-						i += v1 < v2 ? 1 : 0;
-						j += v1 > v2 ? 1 : 0;
 					}
-
+					else {//前半部分都查询结束了，那么只剩后半部分要查询
+						if (v1middle == v2) {
+							EdgeWeight td = idx_s.spt_d[imiddle] + idx_t.spt_d[j];
+							if (td < distance) distance = td;
+							++imiddle;
+							++j;
+						}
+						else {
+							imiddle += v1middle < v2 ? 1 : 0;
+							j += v1middle > v2 ? 1 : 0;
+						}
+				 	}
 				}
+			}else if(!HFinGraphIndex[s]&&HFinGraphIndex[t]){ //s-low,t-high
+				cout<<" s-t:l-h"<<endl;
 			}else{ //low-low frequency point query
-				for (int i = 0, j = 0; ; ) {
-				NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j];
+				// for (int i = 0, j = 0; ; ) {
+				// NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j];
 
-				if (v1 == numOfVertices) break;  // Sentinel
+				// if (v1 == numOfVertices) break;  // Sentinel
 
-					if (v1 == v2) {
-					EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
-					if (td < distance) distance = td;
-					++i;
-					++j;
-					} 
-					else {
-						i += v1 < v2 ? 1 : 0;
-						j += v1 > v2 ? 1 : 0;
+				// 	if (v1 == v2) {
+				// 	EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
+				// 	if (td < distance) distance = td;
+				// 	++i;
+				// 	++j;
+				// 	} 
+				// 	else {
+				// 		i += v1 < v2 ? 1 : 0;
+				// 		j += v1 > v2 ? 1 : 0;
+				// 	}
+				// }
+					int flag{ 1 };
+					for (int i = 0, j = 0, iBack = spt_v_num[s]-1, jBack = spt_v_num[t]; ; ) {//i,j从label前向搜索，iBack和jBack从label后向搜索
+						if (i == iBack || j == jBack|| 0==flag) break;
+						flag = 0;//flag用于排除两个搜索悬空无法相等的特殊情况
+						NodeID v1 = idx_s.spt_v[i], v2 = idx_t.spt_v[j], v1Back = idx_s.spt_v[iBack], v2Back = idx_t.spt_v[jBack];
+						if (v1 == numOfVertices || v2 == numOfVertices) break;  // Sentinel
+						if (v1 < idx_s.spt_v[i + 1] && v2 < idx_t.spt_v[j + 1]) {//进入前向搜索的条件是label中当前点序号小于下一点序号
+							flag = 1;
+							if (v1 == v2) {
+								EdgeWeight td = idx_s.spt_d[i] + idx_t.spt_d[j];
+								if (td < distance) distance = td;
+								++i;
+								++j;
+							}
+							else {
+								i += v1 < v2 ? 1 : 0;
+								j += v1 > v2 ? 1 : 0;
+							}
+						}
+						if (v1Back > idx_s.spt_v[iBack - 1] && v2Back > idx_t.spt_v[jBack - 1]) {//进入后向搜索的条件是label中当前点序号大于下一点序号
+							flag = 1;
+							if (v1Back == v2Back) {
+								EdgeWeight tdBack = idx_s.spt_d[iBack] + idx_t.spt_d[jBack];
+								if (tdBack < distance) distance = tdBack;
+								--iBack;
+								--jBack;
+							}
+							else {
+								iBack -= v1 > v2 ? 1 : 0;
+								jBack -= v1 < v2 ? 1 : 0;
+							}
+						}
 					}
-				}
 
 			}
 			

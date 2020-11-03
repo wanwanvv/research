@@ -8,8 +8,8 @@ Command Usage:
 (the first parameter specifies the procedure be executed)
 -------------------------------------------------------------------
 add:
--i label-size_file [-p labels_file]
--i label-size_file [-h HFPoint_file] [-r high_frequency rate default-5%] -c update cases:0-default noUpdate,1-update low,2-update high
+-i label-size_file [-p labels_file] [-r high_frequency rate default-5%%]
+-i label-size_file [-h HFPoint_file] [-v save_query_distance_file] [-u write_update_labels_file] [-r high_frequency rate default-5%%] -c update cases:0-default noUpdate,1-update low,2-update high, [-t s-t queryModel]0-random(default) 1-(s-t):(h-l),2-(s-t):(l:h),3-(s-t):(h-h),4-(s-t):(l-l)
 -------------------------
 (1) -x: Indexing by different ordering schemes:
 	sspexp_run -x -d [directedGraphFlag] -w [weightedGraphFlag] -s [specialFlag] -m [orderingSchemes] [-a [s_beta]] -g [graphFileName] -e [exportLabelFileName] 
@@ -31,6 +31,7 @@ Parameter explanation:
 	[orderingSchemes] = 0: DHP 
  			1: BHP
  			2: SHP
+			3: FHP(by frequency)
 	[s_beta]: [Optional]trade-off parameter for BHP, default is 1
 	[queryNum]: the number of randomly generated non-duplicated reachable queries. Extra half of queryNum will be generated for warm-up
 	[orderFileName]: only required for path query processing
@@ -60,6 +61,6 @@ Datasets:
 2 3 3
 3 0 5
 
-./sspexp_run -x -d 0 -w 1 -s 0 -m 0 -g ../dataset/manhatan/graph.txt -e ../dataset/manhatan/test1/mlabel1 -i ../dataset/manhatan/test1/mlabel1 -p ../dataset/manhatan/test1/mlabel1
+./sspexp_run -x -d 0 -w 1 -s 0 -m 0 -g ../dataset/manhatan/DHP/graph.txt -e ../dataset/manhatan/DHP/mlabel1 -i ../dataset/manhatan/DHP/mlabel1 -p ../dataset/manhatan/DHP/mlabel1 -r 1
 
-./sspexp_run -q -d 0 -s 0 -o ../dataset/manhatan/test1/mlabel1.order -l ../dataset/manhatan/test1/mlabel1.label -i ../dataset/manhatan/test1/mlabel1.size -h ../dataset/manhatan/freqID.txt -n 1000 -r 5 -c 1
+./sspexp_run -q -d 0 -s 0 -o ../dataset/manhatan/DHP/mlabel1.order -l ../dataset/manhatan/DHP/mlabel1.label -i ../dataset/manhatan/DHP/mlabel1.size -h ../dataset/manhatan/freqID.txt -v ../dataset/manhatan/DHP/test1/distance -u ../dataset/manhatan/DHP/test1/mlabel1 -n 10000 -r 1 -c 1 -t 1
