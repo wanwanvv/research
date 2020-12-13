@@ -15,7 +15,6 @@
 #include "construction.h"
 #include<unordered_map>  
 #include<cmath>
-#include <queue>
 #ifdef _WIN32
 	#include<google/sparsehash/sparseconfig.h>
 #endif
@@ -29,12 +28,14 @@
 #define WEIGHTED_FLAG SP_Constants::WEIGHTED_FLAG  
 #define DIRECTED_FLAG SP_Constants::DIRECTED_FLAG
 #define cover_value_type long long
+#define countType unsigned int
+#define MAX_VALUE 0x7FFFFFFF
 //DEBUG
 #define DEBUG_FLAG 1
 char debugFileName[255] = "../dataset/manhatan/SHP/SOrder"; 
 
 //pair compare 
-bool cmp(const pair<NodeID,int> a, const pair<NodeID,int> b) {
+bool cmp1(const pair<NodeID,int> a, const pair<NodeID,int> b) {
     return a.second>b.second;//自定义的比较函数
 }
 
@@ -125,7 +126,7 @@ class FOrdering{
                 inv[i]=query_point_freq_rank[i].first;
             }
 			 //sorted by desending
-			sort(query_point_freq_rank.begin(),query_point_freq_rank.end(), cmp);
+			sort(query_point_freq_rank.begin(),query_point_freq_rank.end(), cmp1);
 			sort(query_pair_freq_rank.begin(), query_pair_freq_rank.end() );
 			std::cout<<"Query_pair size: "<<query_pair_freq_rank.size()<<endl;
 			std::cout<<"Total query times: "<<cnt<<endl;
@@ -137,7 +138,7 @@ class FOrdering{
 class Hierarchy_fordering : public FOrdering{
     public:
         HFLabel labels; //undirected weighted graph
-        int numOfHFPoint=0; //num of high frequency points
+        int numOfHFpoint=0; //num of high frequency points
 
         //*****************constructions****************
         /*
@@ -156,9 +157,12 @@ class Hierarchy_fordering : public FOrdering{
          *@date: 2020-11-20
         */
          Hierarchy_fordering(WGraph& wgraph, char* query_freq_filename,int model,bool p_flags){}
-        
 
-        //some util functions to be called by others
+        /*
+         *@description: output analysis label size
+         *@author: wanjingyi
+         *@date: 2020-12-13
+        */
         void save_anaylysis_size(const char* write_filename){
 			//write size analysis to file
 			long long total_sum_size=0,hf_sum_size=0;
@@ -171,14 +175,13 @@ class Hierarchy_fordering : public FOrdering{
 			{
 				NodeID isize = labels.index_[v].size()-1;
 				total_sum_size+=isize;
-				if(rank[v]<numOfHFPoint) hf_sum_size+=isize;
+				if(rank[v]<numOfHFpoint) hf_sum_size+=isize;
 			}
             total_ave_size= (double) total_sum_size/(double) numOfVertices;
-			hf_ave_size= (double) hf_sum_size/(double) numOfHFPoint;
+			hf_ave_size= (double) hf_sum_size/(double) numOfHFpoint;
 			ofs<<"numOfVertices = "<<numOfVertices<<" total_sum_size = "<<total_sum_size<<" total_ave_size = "<<total_ave_size<<endl;
-			ofs<<"numOfHFpoint = "<<numOfHFPoint<<" hf_sum_size = "<<hf_sum_size<<" hf_ave_size = "<<hf_ave_size<<endl;
+			ofs<<"numOfHFpoint = "<<numOfHFpoint<<" hf_sum_size = "<<hf_sum_size<<" hf_ave_size = "<<hf_ave_size<<endl;
 			ofs.close();	
-
         }
 
     protected:
@@ -211,11 +214,11 @@ class Hierarchy_fordering : public FOrdering{
                     deg[v] = make_pair((wgraph.vertices[v + 1] - wgraph.vertices[v]) + float(rand()) / RAND_MAX, v);
             }
             sort(deg.rbegin(), deg.rend());
-            for (size_t v = 0; v < numOfHFPoint; ++v){
+            for (size_t v = 0; v < numOfHFpoint; ++v){
                 tmp[inv[v]]=true;
                 rank[inv[v]]=v;
             }
-            size_t i=numOfHFPoint;
+            size_t i=numOfHFpoint;
             for (size_t v = 0; v < numOfVertices; ++v) {
                 if(!tmp[deg[v].second]) {
                     inv[i] = deg[v].second;
@@ -257,7 +260,7 @@ class Hierarchy_fordering : public FOrdering{
             std::cout<<"*********************load_query_frequency finished*************************"<<endl;
 
             std::cout<<"*********************calc_hl_k begins*************************"<<endl;
-            numOfHFPoint=calc_hl_k();
+            numOfHFpoint=calc_hl_k();
             std::cout<<"*********************calc_hl_k finished*************************"<<endl;
 
             std::cout<<"*********************LFPoint ordering begins*************************"<<endl;
@@ -282,7 +285,9 @@ class SOrdering{
     public:
         vector<NodeID> inv; // Fetch the original vertex id by a given ranking.
 	    vector<NodeID> rank; // Fetch the ranking of a given vertex id.
-
+        NodeID numOfHFpoint;//High frequency point num
+        vector<bool> HFPointIndex;//whether the point is high freq point 
+        HFLabel labels;
         void Relabel(Graph& graph) { //unweighted graph
             for (NodeID v = 0; v < numOfVertices; ++v) rank[inv[v]] = v;
             // Array Representation
@@ -378,67 +383,59 @@ class SOrdering{
  *@date: 2020-12-07
 */
 class Synthesis_Ordering : public SOrdering{
-    public:
-        
+    typedef double orderWeightType;//weight used to weigh the importance of the node
+    typedef	vector<NodeID> tree;//store the parent nodes
+    public:    
         Processing::calcCoefficient<double> _calcCoef;
-        HFLabel labels;
         NodeID last_available;
-        NodeID numOfHFpoint;
-        vector<NodeID> HFPoint_inv;//point ordered by frequency
-        vector<NodeID> HFPoint_rank;//fetch the freq order by nodeId
-        vector<bool> HFPointIndex;//whether the point is high freq point 
-        vector<unsigned int> HFPoint_freq;//get the query times by NodeId
+        // vector<NodeID> HFPoint_inv;//point ordered by frequency
+        // vector<NodeID> HFPoint_rank;//fetch the freq order by nodeId
+        vector<unsigned int> Freq;//get the query time of each node
+        // vector<unsigned int> HFPoint_freq;//get the query times by NodeId
         vector<NodeID>  Degree;//get the node degree by id index 
-        vector<NodeID> Degree_inv;//get the degree by id index
-        vector<NodeID> Degree_rank;//fetch the degree order by id index
-        vector<pair<EdgeWeight,NodeID> > Depth;//store the distance
+        // vector<NodeID> Degree_inv;//get the degree by id index
+        // vector<NodeID> Degree_rank;//fetch the degree order by id index
+        vector<EdgeWeight > Depth;//store the distance
        // vector<NodeID> Depth_inv;//get the current distance from choosen node by id index
-        vector<NodeID> Depth_rank;//fetch the distance order by id index
-        vector<pair<unsigned int,NodeID> > Coverage;//store the size of descendant difference of each node
+        // vector<NodeID> Depth_rank;//fetch the distance order by id index
+        // vector<pair<unsigned int,NodeID> > Coverage;//store the size of descendant difference of each node
+        vector<unsigned int> Coverage;//store the size of descendant difference of each node
         //vector<NodeID> Coverage_inv;//get the current size of descendant difference by id index
-        vector<NodeID> Coverage_rank;//fetch the descendantDifference order by id index
+        // vector<NodeID> Coverage_rank;//fetch the descendantDifference order by id index
         //typedef 
-        typedef double orderWeightType;//weight used to weigh the importance of the node
-        typedef priority_queue<pair<NodeID,orderWeightType>,vector<pair<NodeID,orderWeightType> >,cmp_queue> max_queue;//big top heap
-        typedef	vector<NodeID> tree;//store the parent nodes
         long long total_sum_size=0,hf_sum_size=0;//total size variables
 	    double total_ave_size=0,hf_ave_size=0;//average size variables
         ofstream debug_out;//output debug information
+        unsigned int  max_freq=0;//max query time used to normalization
+        unsigned int max_degree=0;//max degree of all nodes
+        unsigned int max_coverage=0;//max coverage of all nodes
+        unsigned int max_depth=0;//max depth of all nodes
+        unsigned int  min_freq=MAX_VALUE;//min query time used to normalization
+        unsigned int min_degree=MAX_VALUE;//min degree of all nodes
+        unsigned int min_coverage=MAX_VALUE;//min coverage of all nodes
+        unsigned int min_depth=MAX_VALUE;//min depth of all nodes
+        unsigned int  interval_freq=0;//max query time -min query time
+        unsigned int interval_degree=0;//max_degree -min_degree
+        unsigned int interval_coverage=0;//max_coverage-min_coverage
+        unsigned int interval_depth=0;//max_depth-min_depth
 
         //*****************construciton fuctions********************
         Synthesis_Ordering(){
             numOfHFpoint=0;
-            HFPoint_inv.clear();
-            HFPoint_rank.clear();
-            HFPointIndex.clear();
-            HFPoint_freq.clear();
+            Freq.clear();
             Degree.clear();
-            Degree_inv.clear();
-            Degree_rank.clear();
             Depth.clear();
-            //Depth_inv.clear();
-            Depth_rank.clear();
             Coverage.clear();
-            //Coverage_inv.clear();
-            Coverage_rank.clear();
             inv.clear();
             rank.clear();
         }
         ~Synthesis_Ordering(){
             numOfHFpoint=0;
-            HFPoint_inv.clear();
-            HFPoint_rank.clear();
+            Freq.clear();
             HFPointIndex.clear();
-            HFPoint_freq.clear();
             Degree.clear();
-            Degree_inv.clear();
-            Degree_rank.clear();
             Depth.clear();
-            //Depth_inv.clear();
-            Depth_rank.clear();
             Coverage.clear();
-            //Coverage_inv.clear();
-            Coverage_rank.clear();
             inv.clear();
             rank.clear();
         }
@@ -446,47 +443,30 @@ class Synthesis_Ordering : public SOrdering{
         {
         }
 
-        Synthesis_Ordering(CHFGraph& chfgraph,Processing::calcCoefficient<double> calcCoef,char* hfpointFIleName,int hfRate)//weighted and undirected graph
+        Synthesis_Ordering(CHFGraph& chfgraph,Processing::calcCoefficient<double> calcCoef,char* queryFreqFileName,int hfRate)//weighted and undirected graph
         {
+            std::cout<<"Synthesis_Ordering undirected weighted graph...."<<endl;
             //initialize all params vector
             initIterms();
+            std::cout<<"Init all items finished!"<<endl;
             //DEBUG
             if(DEBUG_FLAG){
                 debug_out.open(debugFileName,ios::out);
                 if(!debug_out.is_open()) {cerr<<"Cannot open "<<debugFileName<<endl;}
             }
             _calcCoef=calcCoef;//coeffient struct read from command line
+            //std::cout<<"_calcCoef mult : "<<_calcCoef.deg_mult<<" "<<_calcCoef.freq_mult<<" "<<_calcCoef.cov_mult<<" "<<_calcCoef.dep_mult<<" "<<endl;
             double _labeling_time = GetCurrentTimeSec();
-            if(_calcCoef.is_freq_mult) load_HFpoint(hfpointFIleName,hfRate);//frequency
+            if(_calcCoef.is_freq_mult) load_HFpoint(queryFreqFileName,hfRate);//frequency
             if(_calcCoef.is_deg_mult) getDegree(chfgraph);//degree
             undirected_weighted_sigpoint_selection(chfgraph);
              _labeling_time = GetCurrentTimeSec() - _labeling_time;
             cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
         }
-
-        //****************************public functions***********************
-        void save_analysisSize_to_file(const char* write_filename){
-            string write_filename_prefix(write_filename);//all writefile name common prefix
-            //analysis size
-            string asize_filename=write_filename_prefix.append(".asize");
-            total_ave_size= (double) total_sum_size/(double) numOfVertices;
-			hf_ave_size= (double) hf_sum_size/(double) numOfHFpoint;
-            cout<<"numOfVertices = "<<numOfVertices<<" total_sum_size = "<<total_sum_size<<" total_ave_size = "<<total_ave_size<<endl;
-			cout<<"numOfHFpoint = "<<numOfHFpoint<<" hf_sum_size = "<<hf_sum_size<<" hf_ave_size = "<<hf_ave_size<<endl;
-            ofstream ofs(asize_filename.c_str());
-            if(!ofs.is_open()) {cerr<<"Cannot open "<<asize_filename<<endl;}
-			ofs<<"numOfVertices = "<<numOfVertices<<" total_sum_size = "<<total_sum_size<<" total_ave_size = "<<total_ave_size<<endl;
-			ofs<<"numOfHFpoint = "<<numOfHFpoint<<" hf_sum_size = "<<hf_sum_size<<" hf_ave_size = "<<hf_ave_size<<endl;
-			ofs.close();	
-            //debug information
-            // string write_filename_prefix1(write_filename);
-            // string debug_filename=write_filename_prefix1.append(".debug");
-            // ofstream ofs1(debug_filename.c_str());
-            // if(!ofs1.is_open()) {cerr<<"Cannot open "<<debug_filename<<endl;}
-        }
         
 
     protected:
+
         //******************class tool functions*************
         /*
          *@description: used to init all order params 0
@@ -495,17 +475,9 @@ class Synthesis_Ordering : public SOrdering{
         */
         void initIterms(){
             Degree.resize(numOfVertices,0);
-            Degree_inv.resize(numOfVertices);
-            Degree_rank.resize(numOfVertices,numOfVertices);
-            HFPoint_freq.resize(numOfVertices,0);
-            HFPoint_inv.resize(numOfVertices);
-            HFPoint_rank.resize(numOfVertices,numOfVertices);
-            Depth.resize(numOfVertices);
-            //Depth_inv.resize(numOfVertices);
-            Depth_rank.resize(numOfVertices,numOfVertices);
-            Coverage.resize(numOfVertices);
-            //Coverage_inv.resize(numOfVertices);
-            Coverage_rank.resize(numOfVertices,numOfVertices);
+            Freq.resize(numOfVertices,0);
+            Depth.resize(numOfVertices,INF_WEIGHT);
+            Coverage.resize(numOfVertices,0);
             inv.reserve(numOfVertices);
             rank.resize(numOfVertices,numOfVertices);
         }
@@ -515,14 +487,13 @@ class Synthesis_Ordering : public SOrdering{
          *@author: wanjingyi
          *@date: 2020-12-08
         */
-        void updatePQueue(benchmark::heap<2, orderWeightType, NodeID> & wqueue,vector<bool> usd){
-            std::cout << "Initialize elimination weights..." << endl;
-            for(NodeID v=0;v<numOfVertices;++v){
-                if(usd[v]) continue;
-                orderWeightType orderWeight=calculateOrderWeight(v);
-                wqueue.update(v,orderWeight);
-            }
-        }
+        // void updatePQueue(benchmark::heap<2, orderWeightType, NodeID> & wqueue,vector<bool> usd){
+        //     for(NodeID v=0;v<numOfVertices;++v){
+        //         if(usd[v]) continue;
+        //         orderWeightType orderWeight=calculateOrderWeight(v);
+        //         wqueue.update(v,orderWeight);
+        //     }
+        // }
 
         /*
          *@description: used to iteratively select the maxmum to dijkstra search and 
@@ -533,12 +504,11 @@ class Synthesis_Ordering : public SOrdering{
             double _labeling_time = GetCurrentTimeSec();
             //*****************variables*******************
             benchmark::heap<2, EdgeWeight, NodeID> pqueue(numOfVertices);//priority_queue used to get the minimum distance node
-            benchmark::heap<2, orderWeightType, NodeID> wqueue(numOfVertices);//priority_queue used to get the maxmal weight node
+            //benchmark::heap<2, orderWeightType, NodeID> wqueue(numOfVertices);//priority_queue used to get the maxmal weight node
             NodeID choosen;orderWeightType choosen_w;
             int choose_cnt=0;
-            tree parent_tree;
+            tree parent_tree(numOfVertices,numOfVertices);//numOfVertices means root node with no parent
             vector<bool> usd(numOfVertices,false);//flag whether has been as source
-            vector<NodeID> parent_tree(numOfVertices,numOfVertices);//numOfVertices means root node with no parent
             vector<NodeID> root_hop(numOfVertices,0);//store the hop from root
             vector<NodeID> coverage(numOfVertices,0);//store the shortest distances coverage
             vector<EdgeWeight> depth(numOfVertices,INF_WEIGHT);//store the depth of bfs SP-Tree  of each node
@@ -548,7 +518,6 @@ class Synthesis_Ordering : public SOrdering{
             vector<bool> vis(numOfVertices,false); 
             queue<NodeID> visited_que;//FIFO
             vector<EdgeWeight> distances(numOfVertices, INF_WEIGHT); //store the distances from source
-            benchmark::heap<2, EdgeWeight, NodeID> pqueue(numOfVertices);//priority_queue used to dijkstra
             vector<EdgeWeight> dst_r(numOfVertices+1,INF_WEIGHT);//pruned algorithm: store the source node's label distances to other nodes
             vector<pair<vector<NodeID>, vector<EdgeWeight> > >
 			tmp_idx(numOfVertices, make_pair(vector<NodeID>(1, numOfVertices),
@@ -556,10 +525,11 @@ class Synthesis_Ordering : public SOrdering{
             vector<NodeID> source_coverage(numOfVertices,0); //the total coverage of each source node
             int source_cnt=0;
             if(inv.size()!=0) std::cout<<"Initially inv.size()!=0 !"<<endl;
-            updatePQueue(wqueue,usd);//initialize status order
-            while (!wqueue.empty())
+            
+            while (source_cnt<numOfVertices)
             {
-                wqueue.extract_min(choosen,choosen_w);//get the top order node
+                std::cout<<"******************"<<source_cnt<<"*********************"<<endl;
+                getNextConstructNode(choosen,choosen_w,usd);
                 //update the order
                 inv.push_back(choosen);
                 rank[choosen]=inv.size()-1;
@@ -570,24 +540,25 @@ class Synthesis_Ordering : public SOrdering{
                 if(DEBUG_FLAG){//DEBUG
                     debug_out<<"******************* "<<source_cnt<<" "<<choosen<<" *******************"<<endl;
                     debug_out<<"coverage :";
-                    for(size_t i=0;i<numOfVertices;++i) debug_out<<" ("<<Coverage[i].second<<","<<Coverage[i].first<<")"<<endl;
+                    for(NodeID i=0;i<numOfVertices;++i) debug_out<<" ("<<i<<","<<Coverage[i]<<")"<<endl;
                     debug_out<<endl;
                     debug_out<<"depth : ";
-                    for(size_t i=0;i<numOfVertices;++i) debug_out<<" ("<<Depth[i].second<<","<<Depth[i].first<<")"<<endl;
+                    for(NodeID i=0;i<numOfVertices;++i) debug_out<<" ("<<i<<","<<Depth[i]<<")"<<endl;
                     debug_out<<endl;
                 }
-                updatePQueue(wqueue,usd);
                 clearTmpList(descendants,coverage,parent_tree,root_hop,depth);
                 source_cnt++;
                 if(source_cnt%1000==0) std::cout<<"cnt : "<<source_cnt<<endl;
             }
             std::cout<<"Dijkstra take times - source_cnt: "<<source_cnt<<endl;
+            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+            cout<<"average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
             //*********************store the lables************************
             std::cout<<"labels construction finished, start to store......."<<endl;
+            labels.index_.resize(numOfVertices);
             for(NodeID v=0;v<numOfVertices;++v){
                 NodeID k=tmp_idx[v].first.size();
-                total_sum_size+=k-1;
-                if(HFPointIndex[v]) hf_sum_size+=k-1;
                 labels.index_[v].spt_v.reserve(k);
                 labels.index_[v].spt_d.reserve(k);
                 for(NodeID i=0;i<numOfVertices;++i) labels.index_[v].spt_v[i]=rank[tmp_idx[v].first[i]];
@@ -597,7 +568,6 @@ class Synthesis_Ordering : public SOrdering{
                 tmp_idx[v].first.shrink_to_fit();
 			    tmp_idx[v].second.shrink_to_fit();
             }
-            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
             if(DEBUG_FLAG){
                 debug_out<<"source_coverage :";
                 for(size_t i=0;i<source_coverage.size();++i) debug_out<<" "<<source_coverage[i];
@@ -613,19 +583,26 @@ class Synthesis_Ordering : public SOrdering{
          *@date: 2020-12-09
         */
         void updateWeightParams(vector<NodeID>& descendants,vector<EdgeWeight>& depth,vector<NodeID>& coverage){
-            NodeID i,j;
-            //************coverage rank******************
+            NodeID i;
+            max_coverage=0;min_coverage=MAX_VALUE;interval_coverage=0;
+            max_depth=0;min_depth=MAX_VALUE;interval_depth=0;
             for(i=0;i<descendants.size();++i){
                 NodeID v=descendants[i];
-                Coverage.push_back(make_pair(coverage[v],v));
+                Coverage[v]=coverage[v];
             }
-            sort(Coverage.rbegin(),Coverage.rend());
-            for(i=0;i<descendants.size();++i) Coverage_rank[Coverage[i].second]=i;
-            //remaing
-            //************coverage rank******************
-            for(i=0;i<numOfVertices;++i) Depth.push_back(make_pair(depth[i],i));
-            sort(Depth.rbegin(),Depth.rend());
-            for(j=0;j<numOfVertices;++j) Depth_rank[Depth[j].second]=j;
+            for(i=0;i<numOfVertices;++i){
+                if(depth[i]!=INF_WEIGHT&&depth[i]>max_depth) max_depth=depth[i];
+                if(depth[i]!=INF_WEIGHT&&depth[i]<min_depth) min_depth=depth[i];
+                if(Coverage[i]>max_coverage) max_coverage=Coverage[i];
+                if(Coverage[i]<min_coverage) min_coverage=Coverage[i];
+            }
+            interval_coverage=max_coverage-min_coverage;
+            if(max_depth==MAX_VALUE) return;
+            for(i=0;i<numOfVertices;++i){
+                if(Depth[i]==INF_WEIGHT) Depth[i]=max_depth;
+            }
+            interval_depth=max_depth-min_depth;
+            return;
         }
 
         /*
@@ -634,7 +611,7 @@ class Synthesis_Ordering : public SOrdering{
          *@date: 2020-12-09
         */
         void calcCover(vector<NodeID>& descendants, tree& parent_tree, vector<NodeID>& coverage, vector<NodeID>& root_hop){
-            for(size_t i=descendants.size()-1;i>=0;--i){
+            for(NodeID i=descendants.size()-1;i>=0;--i){
                 NodeID v=descendants[i];
                 coverage[v]++;
                 if(parent_tree[v]!=numOfVertices){
@@ -643,7 +620,12 @@ class Synthesis_Ordering : public SOrdering{
                 }
             }
         }
-
+    
+        /*
+         *@description: used to clear all tmp variables
+         *@author: wanjingyi
+         *@date: 2020-12-11
+        */
         void clearTmpList(vector<NodeID>& descendants, vector<NodeID>& coverage, tree& parent_tree, vector<NodeID>& root_hop,vector<EdgeWeight>& depth){
             for(size_t i=0;i<descendants.size();++i){
                 NodeID v=descendants[i];
@@ -653,14 +635,12 @@ class Synthesis_Ordering : public SOrdering{
                 root_hop[v]=0;
             }
             descendants.clear();
-            //*****reset to |numOfVertices|******
+            //*****reset params******
             for(NodeID i=0;i<numOfVertices;++i){
                 depth[i]=INF_WEIGHT;
-                Depth_rank[i]=numOfVertices;
-                Coverage_rank[i]=numOfVertices;
+                Depth[i]=INF_WEIGHT;
+                Coverage[i]=0;
             }
-            Depth.clear();
-            Coverage.clear();
             return;
         }
 
@@ -750,9 +730,37 @@ class Synthesis_Ordering : public SOrdering{
          *@date: 2020-12-08
         */
         orderWeightType calculateOrderWeight(const NodeID node){
-            //orderWeightType result=(orderWeightType)_calcCoef.freq_mult*HFPoint_freq[node]+(orderWeightType)Degree[node]*_calcCoef.deg_mult;
-            orderWeightType result=(orderWeightType)_calcCoef.freq_mult*HFPoint_rank[node]+(orderWeightType)Degree_rank[node]*_calcCoef.deg_mult+(orderWeightType)_calcCoef.cov_mult*Coverage_rank[node]+(orderWeightType)_calcCoef.dep_mult*Depth_rank[node];
+            orderWeightType result=0;
+            if(_calcCoef.freq_mult&&interval_freq!=0) result+=(orderWeightType)_calcCoef.freq_mult*((orderWeightType)(Freq[node]-min_freq)/(orderWeightType)interval_freq);
+            if(_calcCoef.deg_mult&&interval_degree!=0)  result+=(orderWeightType)_calcCoef.deg_mult*((orderWeightType)(Degree[node]-min_degree)/(orderWeightType)interval_degree);
+            if(_calcCoef.cov_mult&&interval_coverage!=0) result+=(orderWeightType)_calcCoef.cov_mult*((orderWeightType)(Coverage[node]-min_coverage)/(orderWeightType)interval_coverage);
+            if(_calcCoef.dep_mult&&interval_depth!=0) result+=(orderWeightType)_calcCoef.dep_mult*((orderWeightType)(Depth[node]-min_depth)/(orderWeightType)interval_depth);
             return result;
+        }
+
+        /*
+         *@description: used to get the fisrt order node to take dijkstra
+         *@author: wanjingyi
+         *@date: 2020-12-11
+        */
+        void getNextConstructNode(NodeID& choose,orderWeightType& choose_w,vector<bool> usd){
+            NodeID max_v=numOfVertices;
+            orderWeightType max_w=0;
+            for(NodeID v=0;v<numOfVertices;++v){
+                if(usd[v]) continue;
+                orderWeightType result=calculateOrderWeight(v);
+                //std::cout<<result<<" "; //to be deleted
+                if(result>max_w||max_v==numOfVertices){
+                    std::cout<<"max_v ="<<v<<" max_w = "<<max_w<<endl;//to be deleted
+                    max_v=v;
+                    max_w=result;
+                }
+            }
+            if(max_v==numOfVertices) std::cout<<"error: max_v==numOfVertices!"<<endl;//to be deleted
+            choose=max_v;
+            choose_w=max_w;
+            return;
+            //std::cout<<endl;//to be deleted
         }
 
         /*
@@ -768,26 +776,32 @@ class Synthesis_Ordering : public SOrdering{
             cout<<"numOfHFpoint  = "<<numOfHFpoint <<endl;
             ifstream in(load_filename);//input HFPoint file to ifstream
             if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
-            HFPoint_inv.resize(numOfVertices);
-            HFPoint_rank.resize(numOfVertices);
             HFPointIndex.resize(numOfVertices,0);
-            vector<pair<NodeID,NodeID> > queryFreq(numOfVertices);//(freq,id)
+            vector<pair<NodeID,NodeID> > queryFreq;//(freq,id)
             NodeID id,freq;
             //read each line representing HFpoint to vector 
             for(NodeID i=0;i<numOfVertices;++i){
                 in>>id>>freq;
-                HFPoint_freq[id]=freq;
+                Freq[id]=freq;
                 queryFreq.push_back(make_pair(freq,id));
             }
             //sort the node by query times
-            sort(queryFreq.rbegin(),queryFreq.rend());//descending order
+            //sort(queryFreq.rbegin(),queryFreq.rend());//descending order
             //initialize query freq information
             for(NodeID i=0;i<numOfVertices;++i){
                 NodeID v=queryFreq[i].second;
-                HFPoint_rank[v]=i;
-                HFPoint_inv[i]=v;
                 if(i<numOfHFpoint) HFPointIndex[v]=true;
             }
+            max_freq=queryFreq[0].first;
+            min_freq=queryFreq[queryFreq.size()-1].first;
+            interval_freq=max_freq-min_freq;
+            // if(interval_freq==0){
+            //     std::cout<<"all frequencies equals!"<<endl;
+            //     _calcCoef.freq_mult=false;
+            // }
+            std::cout<<"max_query_time = "<<max_freq<<endl;
+            std::cout<<"min_query_time = "<<min_freq<<endl;
+            std::cout<<"interval_freq = "<<interval_freq<<endl;
             std::cout<<"***********load hfpoint finished************"<<endl;
 		}
 
@@ -802,10 +816,270 @@ class Synthesis_Ordering : public SOrdering{
                     NodeID v=chfgraph.deg[i].second;
                     NodeID d=chfgraph.deg[i].first;
                     Degree[v]=d;
-                    Degree_rank[v]=i;
-                    Degree_inv[i]=v;
+                    // //compute max_degree
+                    // if(d>max_degree) max_degree=d;
+                    // //compute the min degree
+                    // if(d<min_degree) min_degree=d;
             }
+            max_degree=chfgraph.deg[0].first;
+            min_degree=chfgraph.deg[chfgraph.deg.size()-1].first;
+            interval_degree=max_degree-min_degree;
+            std::cout<<"interval_degree = "<<interval_degree<<endl;
         }
 };
+
+/*
+ *@description: class used to order nodes with linear itemrs*coefficeient = weight sum
+ *@author: wanjingyi
+ *@date: 2020-12-13
+*/
+template<typename weightType>
+class Linear_Ordering :public SOrdering{
+    public:
+        Processing::calcCoefficient<double> _calcCoef;
+        HFLabel labels;
+        vector<weightType> _freq;//get the query time of each node by index
+        vector<weightType> _betwenness;//get the betwenness by node index
+        vector<weightType> _coverage;//get the coverage by node index
+        vector<weightType> _depth;//get the depth by node index
+        vector<weightType> _degree;//get the degree by node index
+        vector<NodeID> _freq_inv;//fetch the index by rank
+        vector<NodeID> _freq_rank;//fetch the rank  by index
+        vector<NodeID> _betwenness_inv;//fetch the index by rank
+        vector<NodeID> _betwenness_rank;//fetch the rank  by index
+        vector<NodeID> _coverage_inv;//fetch the index by rank
+        vector<NodeID> _coverage_rank;//fetch the rank  by index
+        vector<NodeID> _depth_inv;//fetch the index by rank
+        vector<NodeID> _depth_rank;//fetch the rank  by index
+        vector<NodeID> _degree_inv;//fetch the index by rank
+        vector<NodeID> _degree_rank;//fetch the rank  by index
+        long long total_sum_size=0,hf_sum_size=0;//total size variables
+	    double total_ave_size=0,hf_ave_size=0;//average size variables
+        ofstream debug_out;//output debug information
+        unsigned int  max_freq=0;//max query time used to normalization
+        unsigned int max_degree=0;//max degree of all nodes
+        unsigned int max_coverage=0;//max coverage of all nodes
+        unsigned int max_depth=0;//max depth of all nodes
+        unsigned int  min_freq=MAX_VALUE;//min query time used to normalization
+        unsigned int min_degree=MAX_VALUE;//min degree of all nodes
+        unsigned int min_coverage=MAX_VALUE;//min coverage of all nodes
+        unsigned int min_depth=MAX_VALUE;//min depth of all nodes
+        unsigned int  interval_freq=0;//max query time -min query time
+        unsigned int interval_degree=0;//max_degree -min_degree
+        unsigned int interval_coverage=0;//max_coverage-min_coverage
+        unsigned int interval_depth=0;//max_depth-min_depth
+        vector<bool> isConstruct;//indicates whether the node has been constructed
+        //***************************construction functions********************
+
+        Linear_Ordering(){
+
+        }
+        ~Linear_Ordering(){
+
+        }
+
+        /*
+        *@description: construction used for undirected and weighted graph
+        *@author: wanjingyi
+        *@date: 2020-12-13
+        */
+        Linear_Ordering(WGraph& wgraph,Processing::calcCoefficient<double> calcCoef,char* queryFreqFileName,char* betwennessFileName,char* coverageFileName,int hfRate){
+            std::cout<<"Linear_Ordering undirected weighted graph...."<<endl;
+            initIterms();//init all values
+            _calcCoef=calcCoef;//get the coefficient from command line
+            if(_calcCoef.is_freq_mult) load_HFpoint(queryFreqFileName,hfRate);//frequency
+            if(_calcCoef.is_deg_mult) getDegree(wgraph);//degree
+            if(_calcCoef.is_bet_mult) getBetwennessOrderFromFile(betwennessFileName);//betwenness
+            if(_calcCoef.is_cov_mult) getCoverageOrderFromFile(coverageFileName);//coverage
+            calcWeightByOrder();//cumpute the order
+
+        }
+
+    protected:
+        /*
+         *@description: calculate the node weight by rank
+         *@author: wanjingyi
+         *@date: 2020-12-13
+        */
+        void calcWeightByOrder(){
+            std::cout<<"*****************************calcWeightByOrder begins!**************************"<<endl;
+            vector<pair<weightType,NodeID> > orderWeight;
+            orderWeight.reserve(numOfVertices);
+            for(NodeID v=0;v<numOfVertices;++v){
+                weightType result=0;
+                result=(weightType)_freq_rank[v]*_calcCoef.freq_mult+(weightType)_degree_rank[v]*_calcCoef.deg_mult+
+                (weightType)_betwenness_rank[v]*_calcCoef.bet_mult+(weightType)_coverage_rank[v]*_calcCoef.cov_mult+
+                (weightType)_depth_rank[v]*_calcCoef.dep_mult;
+                orderWeight.push_back(make_pair(result,v) );
+            }
+            //sort
+            sort(orderWeight.begin(),orderWeight.end());
+            for(NodeID i=0;i<numOfVertices;++i){
+                NodeID v=orderWeight[i].second;
+                inv[i]=v;
+                rank[v]=i;
+                std::cout<<i<<"-("<<v<<","<<orderWeight[i].first<<") "<<endl;//to be deleted
+            }
+           std::cout<<endl;//to be deleted
+            std::cout<<"*****************************calcWeightByOrder finished!**************************"<<endl;
+        }
+
+        /*
+        *@description: used to init all iterms' values
+        *@author: wanjingyi
+        *@date: 2020-12-13
+        */
+        bool initIterms(){
+            //inv rank
+            inv.resize(numOfVertices);
+            rank.resize(numOfVertices);
+            //isCnstruct
+            isConstruct.resize(numOfVertices,false);
+            //query frequency
+            _freq.resize(numOfVertices,0);
+            _freq_rank.resize(numOfVertices,0);
+            _freq_inv.resize(numOfVertices);
+            numOfHFpoint=0;
+            HFPointIndex.resize(numOfVertices,0);
+            //degree
+            _degree.resize(numOfVertices,0);
+            _degree_rank.resize(numOfVertices,0);
+            _degree_inv.resize(numOfVertices);
+            //betwenness
+            _betwenness.resize(numOfVertices,0);
+            _betwenness_inv.resize(numOfVertices);
+            _betwenness_rank.resize(numOfVertices,0);
+            //coverage
+            _coverage.resize(numOfVertices,0);
+            _coverage_inv.resize(numOfVertices);
+            _coverage_rank.resize(numOfVertices,0);
+            //depth
+            _depth_rank.resize(numOfVertices,0);
+            _depth.resize(numOfVertices,0);
+            _depth_inv.resize(numOfVertices);
+        }
+
+        /*
+         *@description: used to read betwenness order from file
+         *@author: wanjingyi
+         *@date: 2020-12-13
+        */
+        void getBetwennessOrderFromFile(char* load_filename){
+            std::cout<<"**********************getBetwennessOrderFromFile begins!**********************"<<endl;
+            ifstream in(load_filename);//input betwenness file to ifstream
+            if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
+            NodeID id;
+            for(NodeID i=0;i<numOfVertices;++i){
+                in>>id;
+                _betwenness_rank[id]=i;
+                _betwenness_inv[i]=id;
+            }
+            in.close();
+            std::cout<<"**********************getBetwennessOrderFromFile finished!**********************"<<endl;
+        }
+
+        void getBetwennessFromFile(){
+
+        }
+
+        /*
+         *@description: used to read coverage order from file
+         *@author: wanjingyi
+         *@date: 2020-12-13
+        */
+        void getCoverageOrderFromFile(char* load_filename){
+            std::cout<<"***********************getCoverageOrderFromFile begins!*************************"<<endl;
+            ifstream in(load_filename);//input coverage file to ifstream
+            if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
+            NodeID id;
+            for(NodeID i=0;i<numOfVertices;++i){
+                in>>id;
+                _coverage_rank[id]=i;
+                _coverage_inv[i]=id;
+            }
+            in.close();
+            std::cout<<"***********************getCoverageOrderFromFile finished!!*************************"<<endl;
+        }
+
+        void getCoverageFromFile(){
+
+        }
+
+        /*
+         *@description: used to get the degree of each node
+         *@author: wanjingyi
+         *@date: 2020-12-13
+        */
+        void getDegree(WGraph& wgraph){
+            std::cout<<"*************getDegree begins!*************"<<endl;
+            int cnt[6]={0};//num of vertices of degree 0,1,2,3,4,>4
+            vector<pair<float,NodeID>> deg;//store the degree
+			deg.resize(numOfVertices);
+            srand(100);
+			for(NodeID v=0;v<numOfVertices;++v){
+				unsigned int degree=wgraph.vertices[v+1]-wgraph.vertices[v];
+				deg[v]=make_pair((float)degree+float(rand()) / RAND_MAX,v);
+                _degree[v]=degree;
+				if(degree<=4) cnt[degree]++;
+				else cnt[5]++;
+			}
+			sort(deg.rbegin(),deg.rend());
+			std::cout<<"vertices num of degree: 0-"<<cnt[0]<<" 1-"<<cnt[1]<<" 2-"<<cnt[2]<<" 3-"<<cnt[3]<<" 4-"<<cnt[4]<<" >4-"<<cnt[5]<<endl;
+
+            for(NodeID i=0;i<=numOfVertices;++i){
+                    NodeID v=deg[i].second;
+                    NodeID d=deg[i].first;
+                    _degree_inv[v]=i;
+                    _degree_rank[i]=v;
+            }
+            max_degree=deg[0].first;
+            min_degree=deg[deg.size()-1].first;
+            interval_degree=max_degree-min_degree;
+            std::cout<<"interval_degree = "<<interval_degree<<endl;
+            std::cout<<"*************getDegree finished!*************"<<endl;
+        }
+
+        /*
+         *@description: used to load frequency and hfpoint
+         *@author: wanjingyi
+         *@date: 2020-12-13
+        */
+        void load_HFpoint(char* load_filename,int hfRate=50){ //hfRate/1000
+            std::cout<<"***********load hfpoint begins************"<<endl;
+            numOfHFpoint = 0;//first line is the number of HFpoints
+            numOfHFpoint = static_cast<int> ( (double)numOfVertices*hfRate/(double)1000);
+            if(numOfHFpoint<=0) cout<<"error:numOfHFpoint<=0"<<endl;
+            cout<<"numOfHFpoint  = "<<numOfHFpoint <<endl;
+            ifstream in(load_filename);//input HFPoint file to ifstream
+            if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
+            vector<pair<NodeID,NodeID> > queryFreq;//(freq,id)
+            NodeID id,freq;
+            //read each line representing HFpoint to vector 
+            for(NodeID i=0;i<numOfVertices;++i){
+                in>>id>>freq;
+                _freq[id]=(weightType)freq;
+                queryFreq.push_back(make_pair(freq,id));
+            }
+            //sort the node by query times
+            //sort(queryFreq.rbegin(),queryFreq.rend());//descending order
+            //initialize query freq information
+            for(NodeID i=0;i<numOfVertices;++i){
+                NodeID v=queryFreq[i].second;
+                _freq_inv[i]=v;
+                _freq_rank[v]=i;
+                if(i<numOfHFpoint) HFPointIndex[v]=true;
+            }
+            max_freq=queryFreq[0].first;
+            min_freq=queryFreq[queryFreq.size()-1].first;
+            interval_freq=max_freq-min_freq;
+            std::cout<<"max_query_time = "<<max_freq<<endl;
+            std::cout<<"min_query_time = "<<min_freq<<endl;
+            std::cout<<"interval_freq = "<<interval_freq<<endl;
+            std::cout<<"***********load hfpoint finished************"<<endl;
+        }
+
+};
+
+
 
 #endif //FREQUENCY_HIERARCHY_ORDERING
