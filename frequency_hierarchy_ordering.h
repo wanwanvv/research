@@ -749,9 +749,8 @@ class Synthesis_Ordering : public SOrdering{
             for(NodeID v=0;v<numOfVertices;++v){
                 if(usd[v]) continue;
                 orderWeightType result=calculateOrderWeight(v);
-                //std::cout<<result<<" "; //to be deleted
                 if(result>max_w||max_v==numOfVertices){
-                    std::cout<<"max_v ="<<v<<" max_w = "<<max_w<<endl;//to be deleted
+                    //std::cout<<"max_v ="<<v<<" max_w = "<<max_w<<endl;//to be deleted
                     max_v=v;
                     max_w=result;
                 }
@@ -760,7 +759,6 @@ class Synthesis_Ordering : public SOrdering{
             choose=max_v;
             choose_w=max_w;
             return;
-            //std::cout<<endl;//to be deleted
         }
 
         /*
@@ -838,11 +836,11 @@ class Linear_Ordering :public SOrdering{
     public:
         Processing::calcCoefficient<double> _calcCoef;
         HFLabel labels;
-        vector<weightType> _freq;//get the query time of each node by index
-        vector<weightType> _betwenness;//get the betwenness by node index
-        vector<weightType> _coverage;//get the coverage by node index
-        vector<weightType> _depth;//get the depth by node index
-        vector<weightType> _degree;//get the degree by node index
+        vector<unsigned int> _freq;//get the query time of each node by index
+        vector<unsigned int> _betwenness;//get the betwenness by node index
+        vector<unsigned int> _coverage;//get the coverage by node index
+        vector<unsigned int> _depth;//get the depth by node index
+        vector<unsigned int> _degree;//get the degree by node index
         vector<NodeID> _freq_inv;//fetch the index by rank
         vector<NodeID> _freq_rank;//fetch the rank  by index
         vector<NodeID> _betwenness_inv;//fetch the index by rank
@@ -883,8 +881,20 @@ class Linear_Ordering :public SOrdering{
         *@author: wanjingyi
         *@date: 2020-12-13
         */
-        Linear_Ordering(WGraph& wgraph,Processing::calcCoefficient<double> calcCoef,char* queryFreqFileName,char* betwennessFileName,char* coverageFileName,int hfRate){
+        Linear_Ordering(WGraph& wgraph,Processing::calcCoefficient<double> calcCoef,char* queryFreqFileName,char* betwennessFileName,char* coverageFileName,int hfRate,int t_ordering_flag){
             std::cout<<"Linear_Ordering undirected weighted graph...."<<endl;
+            if(t_ordering_flag ==0) undirected_weighted_orderByRank(wgraph,calcCoef,queryFreqFileName,betwennessFileName,coverageFileName,hfRate);
+            else if(t_ordering_flag ==1) undirected_weighted_orderByValues(wgraph,calcCoef,queryFreqFileName,betwennessFileName,coverageFileName,hfRate);
+        }
+
+    protected:
+        /*
+         *@description: order the nodes by ierms_rank*Coefficient sum
+         *@author: wanjingyi
+         *@date: 2020-12-16
+        */
+        void undirected_weighted_orderByRank(WGraph& wgraph,Processing::calcCoefficient<double> calcCoef,char* queryFreqFileName,char* betwennessFileName,char* coverageFileName,int hfRate)
+        {
             initIterms();//init all values
             _calcCoef=calcCoef;//get the coefficient from command line
             if(_calcCoef.is_freq_mult) load_HFpoint(queryFreqFileName,hfRate);//frequency
@@ -892,10 +902,54 @@ class Linear_Ordering :public SOrdering{
             if(_calcCoef.is_bet_mult) getBetwennessOrderFromFile(betwennessFileName);//betwenness
             if(_calcCoef.is_cov_mult) getCoverageOrderFromFile(coverageFileName);//coverage
             calcWeightByOrder();//cumpute the order
-
         }
 
-    protected:
+        /*
+         *@description: order the nodes by detailed_values*Coefficient sum
+         *@author: wanjingyi
+         *@date: 2020-12-16
+        */
+        void undirected_weighted_orderByValues(WGraph& wgraph,Processing::calcCoefficient<double> calcCoef,char* queryFreqFileName,char* betwennessFileName,char* coverageFileName,int hfRate)
+        {
+            initIterms();//init all values
+            _calcCoef=calcCoef;//get the coefficient from command line
+            if(_calcCoef.is_freq_mult) load_HFpoint(queryFreqFileName,hfRate);//frequency
+            if(_calcCoef.is_deg_mult) getDegree(wgraph);//degree
+            if(_calcCoef.is_bet_mult) getBetwennessFromFile(betwennessFileName);//betwenness
+            if(_calcCoef.is_cov_mult) getCoverageFromFile(coverageFileName);//coverage
+            calcWeightByValue();//cumpute the order
+        }
+
+        /*
+         *@description: calculate the node weight by value
+         *@author: wanjingyi
+         *@date: 2020-12-16
+        */
+        void calcWeightByValue(){
+            std::cout<<"*****************************calcWeightByOrder begins!**************************"<<endl;
+            vector<pair<weightType,NodeID> > orderWeight;
+            srand(0x728f9d0);//srand seed
+            orderWeight.reserve(numOfVertices);
+            std::cout<<" freq_mult="<<_calcCoef.freq_mult<<" deg_mult="<<_calcCoef.deg_mult<<" bet_mult="<<_calcCoef.bet_mult<<" cov_mult="<<_calcCoef.cov_mult<<" dep_mult="<<_calcCoef.dep_mult;
+            for(NodeID v=0;v<numOfVertices;++v){
+                weightType result=0;
+                result=(weightType)_freq[v]*_calcCoef.freq_mult+(weightType)_degree[v]*_calcCoef.deg_mult+
+                (weightType)_betwenness[v]*_calcCoef.bet_mult+(weightType)_coverage[v]*_calcCoef.cov_mult+
+                (weightType)_depth[v]*_calcCoef.dep_mult;//tie breaking +weightType(rand()) / RAND_MAX
+                orderWeight.push_back(make_pair(result,v) );
+            }
+            sort(orderWeight.rbegin(),orderWeight.rend());
+            ofstream out("../dataset/manhatan/Order/orderWeight.txt");//to be deleted
+            for(NodeID i=0;i<numOfVertices;++i){
+                NodeID v=orderWeight[i].second;
+                inv[i]=v;
+                rank[v]=i;
+                out<<i<<"-("<<v<<","<<orderWeight[i].first<<") "<<endl;//to be deleted
+            }
+           out.close();//to be deleted
+            std::cout<<"*****************************calcWeightByValue finished!**************************"<<endl;
+        }
+
         /*
          *@description: calculate the node weight by rank
          *@author: wanjingyi
@@ -905,6 +959,7 @@ class Linear_Ordering :public SOrdering{
             std::cout<<"*****************************calcWeightByOrder begins!**************************"<<endl;
             vector<pair<weightType,NodeID> > orderWeight;
             orderWeight.reserve(numOfVertices);
+            std::cout<<" freq_mult="<<_calcCoef.freq_mult<<" deg_mult="<<_calcCoef.deg_mult<<" bet_mult="<<_calcCoef.bet_mult<<" cov_mult="<<_calcCoef.cov_mult<<" dep_mult="<<_calcCoef.dep_mult;
             for(NodeID v=0;v<numOfVertices;++v){
                 weightType result=0;
                 result=(weightType)_freq_rank[v]*_calcCoef.freq_mult+(weightType)_degree_rank[v]*_calcCoef.deg_mult+
@@ -912,15 +967,16 @@ class Linear_Ordering :public SOrdering{
                 (weightType)_depth_rank[v]*_calcCoef.dep_mult;
                 orderWeight.push_back(make_pair(result,v) );
             }
+            //ofstream out("orderWeight.txt");//to be deleted
             //sort
             sort(orderWeight.begin(),orderWeight.end());
             for(NodeID i=0;i<numOfVertices;++i){
                 NodeID v=orderWeight[i].second;
                 inv[i]=v;
                 rank[v]=i;
-                std::cout<<i<<"-("<<v<<","<<orderWeight[i].first<<") "<<endl;//to be deleted
+                //out<<i<<"-("<<v<<","<<orderWeight[i].first<<") "<<endl;//to be deleted
             }
-           std::cout<<endl;//to be deleted
+           //out.close();//to be deleted
             std::cout<<"*****************************calcWeightByOrder finished!**************************"<<endl;
         }
 
@@ -978,8 +1034,22 @@ class Linear_Ordering :public SOrdering{
             std::cout<<"**********************getBetwennessOrderFromFile finished!**********************"<<endl;
         }
 
-        void getBetwennessFromFile(){
-
+        /*
+         *@description: read the node's betweenness from file
+         *@author: wanjingyi
+         *@date: 2020-12-16
+        */
+        void getBetwennessFromFile(char* load_filename){
+            std::cout<<"***********************getCoverageFromFile begins!*************************"<<endl;
+            ifstream in(load_filename);//input coverage file to ifstream
+            if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
+            NodeID id;NodeID bet;
+            for(NodeID i=0;i<numOfVertices;++i){
+                in>>id>>bet;
+                _betwenness[id]=bet;
+            }
+            in.close();
+            std::cout<<"***********************getCoverageFromFile finished!!*************************"<<endl;
         }
 
         /*
@@ -1001,8 +1071,8 @@ class Linear_Ordering :public SOrdering{
             std::cout<<"***********************getCoverageOrderFromFile finished!!*************************"<<endl;
         }
 
-        void getCoverageFromFile(){
-
+        void getCoverageFromFile(char* load_filename){
+            return;
         }
 
         /*
@@ -1018,20 +1088,24 @@ class Linear_Ordering :public SOrdering{
             srand(100);
 			for(NodeID v=0;v<numOfVertices;++v){
 				unsigned int degree=wgraph.vertices[v+1]-wgraph.vertices[v];
-				deg[v]=make_pair((float)degree+float(rand()) / RAND_MAX,v);
+				deg[v]=make_pair((wgraph.vertices[v+1]-wgraph.vertices[v])+float(rand()) / RAND_MAX,v);
+                //deg[v]=make_pair(degree,v);
                 _degree[v]=degree;
 				if(degree<=4) cnt[degree]++;
 				else cnt[5]++;
 			}
 			sort(deg.rbegin(),deg.rend());
 			std::cout<<"vertices num of degree: 0-"<<cnt[0]<<" 1-"<<cnt[1]<<" 2-"<<cnt[2]<<" 3-"<<cnt[3]<<" 4-"<<cnt[4]<<" >4-"<<cnt[5]<<endl;
-
+            //ofstream out("manhatan.degree");//to be deleted
+            //if(!out.is_open()) std::cout<<"manhatan.degree can't be opened!"<<endl;
             for(NodeID i=0;i<=numOfVertices;++i){
                     NodeID v=deg[i].second;
-                    NodeID d=deg[i].first;
-                    _degree_inv[v]=i;
-                    _degree_rank[i]=v;
+                    float d=deg[i].first;
+                    _degree_inv[i]=v;
+                    _degree_rank[v]=i;
+                    //out<<v<<" "<<_degree[v]<<" "<<d<<endl;      
             }
+            //out.close();//to be deleted
             max_degree=deg[0].first;
             min_degree=deg[deg.size()-1].first;
             interval_degree=max_degree-min_degree;
@@ -1052,16 +1126,17 @@ class Linear_Ordering :public SOrdering{
             cout<<"numOfHFpoint  = "<<numOfHFpoint <<endl;
             ifstream in(load_filename);//input HFPoint file to ifstream
             if(!in.is_open()) {cerr<<"Cannot open "<<load_filename<<endl;}
-            vector<pair<NodeID,NodeID> > queryFreq;//(freq,id)
+            vector<pair<float,NodeID> > queryFreq;//(freq,id)
             NodeID id,freq;
+            srand(100);
             //read each line representing HFpoint to vector 
             for(NodeID i=0;i<numOfVertices;++i){
                 in>>id>>freq;
-                _freq[id]=(weightType)freq;
-                queryFreq.push_back(make_pair(freq,id));
+                _freq[id]=freq;
+                queryFreq.push_back(make_pair(freq+ float(rand()) / RAND_MAX,id));
             }
             //sort the node by query times
-            //sort(queryFreq.rbegin(),queryFreq.rend());//descending order
+            sort(queryFreq.rbegin(),queryFreq.rend());//descending order
             //initialize query freq information
             for(NodeID i=0;i<numOfVertices;++i){
                 NodeID v=queryFreq[i].second;

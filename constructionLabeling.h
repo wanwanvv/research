@@ -12,7 +12,7 @@ namespace command{
         public:
             void exit_with_help(){
                 printf("Usage:\n");
-                printf("\tsspexp_run -z -d [directedGraphFlag] -w [weightedGraphFlag] -s [specialFlag] -m [indexingSchemes] [-o [rderingSchemes]] -g [graphFileName] \n -e [exportLabelFileName] -q [query_freq_file] [-p labels_file] [-i [label_size_file]] [-f size_analysis_file] \n [-p labels_file] [-i [label_size_file]] [-f size_analysis_file]\n");
+                printf("\tsspexp_run -z -d [directedGraphFlag] -w [weightedGraphFlag] -s [specialFlag] -m [indexingSchemes] -o [OrderingSchemes] -g [graphFileName] \n -e [exportLabelFileName] [-q [query_freq_file]] [-h [HFPoint_file]] [-p label_list_file] [-i [label_size_file]] [-f size_analysis_file\n [-b betweenness_filename] [-c coverage_filename] [-r high_frequency rate default-5%%] [-j -k -l -u -v coeffient of params(degree,frequency,betwenness,coverage,depth;0~10)]\n");
                 printf("-------------------------------------------------------------------\n");
             }
 
@@ -27,16 +27,18 @@ namespace command{
                 char queryFreqFileName[255] = ""; //queryTime file name(format:s t queryTime) with no order
                 char labelSizeFileName[255] = ""; 
                 char labelListFileName[255] = ""; 
-                char asizeFileName[256]=""; //analysis size file
+                char asizeFileName[255]=""; //analysis size file
                 char hfpointFIleName[255]="";//hfpoint file name (format:NodeID queryTimes) by descending order
+                char betwennessFileName[255]=""; //abetwenness file computed before
+                char coverageFileName[255]=""; //coverageFileName computed before
                 bool isOutputAnalysis=false;//whether write analysis size to file
                 bool isOutputLabelSize=false;
                 bool isOutputLabelList=false;
                 bool isLoadQueryFreq=false;
                 bool isLoadHFPoint=false;
                 int hfRate=50;//default is 50/1000
-                int k_deg=0,k_freq=0,k_cov=0,k_dep=0;//coefficients(int)
-                bool is_deg=false, is_freq=false, is_cov=false, is_dep=false;
+                int k_deg=0,k_freq=0,k_cov=0,k_dep=0,k_bet=0;//coefficients(int)
+                bool is_deg=false, is_freq=false, is_cov=false, is_dep=false,is_bet=false;
 
                 if(argc<16) exit_with_help();
 
@@ -75,6 +77,13 @@ namespace command{
                                 std::cout<<"queryFreqFileName="<<queryFreqFileName<<endl;
                             }else cerr<<"queryFreqFileName cann't be null!"<<endl;          
                             break;
+                        case 'h':
+                            strcpy(hfpointFIleName,argv[i]); ///modified by wanjingyi
+                            if(hfpointFIleName=="") cerr<<"hfpointFIleName cannot be null!"<<endl;
+                            else{
+                                isLoadHFPoint=true;
+                                std::cout<<"hfpointFIleName = "<<hfpointFIleName<<endl;
+                            }    
                         case 'p':
                             strcpy(labelListFileName,argv[i]);
                             isOutputLabelList=true;
@@ -89,29 +98,34 @@ namespace command{
                             strcpy(asizeFileName,argv[i]); ///modified by wanjingyi
                             isOutputAnalysis=true;
                             std::cout<<"asizeFileName = "<<asizeFileName<<endl;
-                        case 'h':
-                            strcpy(hfpointFIleName,argv[i]); ///modified by wanjingyi
-                            if(hfpointFIleName=="") cerr<<"hfpointFIleName cannot be null!"<<endl;
-                            else{
-                                isLoadHFPoint=true;
-                                std::cout<<"hfpointFIleName = "<<hfpointFIleName<<endl;
-                            }    
+                        case 'b':
+                            strcpy(betwennessFileName, argv[i]);
+                            std::cout<<"betwennessFileName="<<betwennessFileName<<endl;
+                            break;
+                        case 'c':
+                            strcpy(coverageFileName, argv[i]);
+                            std::cout<<"coverageFileName="<<coverageFileName<<endl;
+                            break;
                         case 'r':
                             hfRate = atoi(argv[i]);
                             break;
-                        case 'a':
+                        case 'j':
                             k_deg = atoi(argv[i]);
                             if(k_deg!=0) is_deg=true;
                             break;
-                        case 'b':
+                        case 'k':
                             k_freq = atoi(argv[i]);
                             if(k_freq!=0) is_freq=true;
                             break;
-                        case 'c':
+                        case 'l':
+                            k_bet = atoi(argv[i]);
+                            if(k_bet!=0) is_bet=true;
+                            break;
+                        case 'u':
                             k_cov = atoi(argv[i]);
                             if(k_cov!=0) is_cov=true;
                             break;
-                        case 'j':
+                        case 'v':
                             k_dep = atoi(argv[i]);
                             if(k_dep!=0) is_dep=true;
                             break;
@@ -120,6 +134,8 @@ namespace command{
                     }
                 }
 
+            if(!is_deg&&!is_dep&&!is_freq&&!is_cov) exit_with_help();
+            if(is_bet&&*betwennessFileName=='\0') exit_with_help();  
 
             if (t_directed_flag == 1)
                 DIRECTED_FLAG = true;
@@ -135,6 +151,9 @@ namespace command{
             }
             else if(t_indexing_flag==1){
                 chfgraph.load_graph(graphFileName);
+            }else if(t_indexing_flag==2){
+                if(WEIGHTED_FLAG) wgraph.load_graph(graphFileName);
+                else graph.load_graph(graphFileName);
             }
             std::cout << numOfVertices << " nodes and " << numOfEdges << " arcs " << endl;
             
@@ -194,8 +213,8 @@ namespace command{
                         else if(t_indexing_flag==1){ //the second way of heuristic order
                             std::cout<<"**************1-heuristic selection push algorithm************"<<endl;
                             //compute the coefficients  of order
-                            Processing::calcCoefficient<double> calcCoef((double)(k_deg/10),(double)(k_freq/10),(double)(k_cov/10),(double)(k_dep/10),is_deg, is_freq, is_cov, is_dep);
-                            Synthesis_Ordering synthesis_ordering(chfgraph, calcCoef,hfpointFIleName,hfRate);
+                            Processing::calcCoefficient<double> calcCoef((double)(k_deg/10),(double)(k_freq/10),(double)(k_cov/10),(double)(k_dep/10),(double)(k_bet/10),is_deg, is_freq, is_cov, is_dep,is_bet);
+                            Synthesis_Ordering synthesis_ordering(chfgraph, calcCoef,queryFreqFileName,hfRate);
                             //save rank to txt file
                             cout<<"******************save_rank begins!****************"<<endl;
                             string orderFileName(labelFileName);
@@ -216,9 +235,51 @@ namespace command{
                             //save debug and analysis information
                             if(isOutputAnalysis){
                                 cout<<"*************write_analysis_size begins!**************"<<endl;
-                                synthesis_ordering.save_analysisSize_to_file(asizeFileName);
+                                synthesis_ordering.labels.save_anaylysis_size(queryFreqFileName,asizeFileName,hfRate);
                                 cout<<"*************write_analysis_size finished!*************"<<endl;
 					        }
+                            return 0;
+                        }
+                        else if(t_indexing_flag==2){//the third way of items*coefficient=weight
+                            std::cout<<"************2-precompute items weight*coefficient selection push algorithm*******"<<endl;
+                             //compute the coefficients  of order
+                             double _labeling_time = GetCurrentTimeSec();//count the indexing time
+                            Processing::calcCoefficient<double> calcCoef((double)k_deg/10,(double)k_freq/10,(double)k_cov/10,(double)k_dep/10,(double)k_bet/10,is_deg, is_freq, is_cov, is_dep,is_bet);
+                            Linear_Ordering<double> linear_ordering(wgraph,calcCoef,queryFreqFileName,betwennessFileName,coverageFileName,hfRate,t_ordering_flag);
+                            Given_Ordering given_order(wgraph,linear_ordering.inv,linear_ordering.rank);
+                            double _hub_time = GetCurrentTimeSec();
+                            PL_W pl_w(wgraph, given_order);
+                            _hub_time = GetCurrentTimeSec()-_hub_time;
+                            cout << "Labeling time:" <<_hub_time *1e6 <<  " microseconds" << endl;
+                            cout << "Indexing time:" << _labeling_time *1e6 <<  " microseconds" << endl;
+                            double ave_labeling_time=_labeling_time/(double) numOfVertices;
+                            double ave_hub_time=_hub_time/(double) numOfVertices;
+                            cout<<" average indexing time:"<<ave_labeling_time*1e6 <<  " microseconds" << endl;
+                            cout<<" average labeling time:"<<ave_hub_time*1e6 <<  " microseconds" << endl;
+                            //save rank to txt file
+                            cout<<"******************save_rank begins!****************"<<endl;
+                            string orderFileName(labelFileName);
+                            orderFileName.append(".order");
+                            linear_ordering.save_rank(orderFileName.c_str());
+                            cout<<"******************save_rank finished!****************"<<endl;
+                            cout<<"***************save_labels begins!(binary and txt)*******************"<<endl;
+                            //save labels to binary and txt file
+                            string labelFile(labelFileName);
+                            labelFile.append(".label");
+                            pl_w.labels.save_labels(labelFile.c_str());
+                            if(isOutputLabelList) pl_w.labels.write_labels(labelListFileName,linear_ordering.inv);
+                            cout<<"***************save_labels successfully!*******************"<<endl;
+                            //save label size
+                            cout<<"***************save_label_size begins!*******************"<<endl;
+                            if(isOutputLabelSize) pl_w.labels.save_label_size(labelSizeFileName,linear_ordering.inv);
+                            cout<<"***************save_label_size successfully!*******************"<<endl;
+                            //save debug and analysis information
+                            if(isOutputAnalysis){
+                                cout<<"*************write_analysis_size begins!**************"<<endl;
+                                pl_w.labels.save_anaylysis_size(queryFreqFileName,asizeFileName,hfRate);
+                                cout<<"*************write_analysis_size finished!*************"<<endl;
+					        }
+                            return 0;
                         }
 
                     }else{
